@@ -1,3 +1,15 @@
+"""BigVul数据集实证评估模块。
+
+该模块包含EmpEvalBigVul类，用于对BigVul数据集进行实证评估，
+分析模型在不同类型语句上的漏洞检测性能，以及漏洞分布情况。
+主要功能包括：
+1. 加载模型预测结果和测试数据
+2. 获取函数和语句的元数据
+3. 评估模型在测试集上的性能
+4. 分析不同类型语句的错误分布
+5. 计算各类语句的F1分数和MCC等指标
+"""
+
 import os
 from collections import Counter, defaultdict
 from glob import glob
@@ -14,16 +26,20 @@ from tqdm import tqdm
 
 
 class EmpEvalBigVul:
-    """Perform Empirical Evaluation."""
+    """BigVul数据集实证评估类。
+    
+    该类用于对LineVD模型在BigVul数据集上的预测结果进行实证分析，
+    评估模型在不同类型语句和函数上的漏洞检测性能。
+    """
 
     def __init__(self, all_funcs: list, test_data: lvd.BigVulDatasetLineVD):
-        """Init.
+        """初始化实证评估类。
 
-        Args:
-            all_funcs (list): All funcs predictions returned from LitGNN.
-            test_data (lvd.BigVulDatasetLineVD): Test set.
+        参数:
+            all_funcs (list): 从LitGNN模型返回的所有函数预测结果
+            test_data (lvd.BigVulDatasetLineVD): 测试数据集
 
-        Example:
+        示例用法:
             model = lvd.LitGNN()
             model = lvd.LitGNN.load_from_checkpoint($BESTMODEL$, strict=False)
             trainer.test(model, data)
@@ -40,42 +56,69 @@ class EmpEvalBigVul:
         self.test_data = test_data
 
     def func_metadata(self, _id):
-        """Get func metadata."""
+        """获取函数的元数据信息。
+        
+        参数:
+            _id: 函数的唯一标识符
+            
+        返回:
+            包含函数元数据的字典
+        """
         return self.func_df.loc[_id].to_dict()
 
     def stmt_metadata(self, _id):
-        """Get statement metadata."""
+        """获取语句的元数据信息。
+        
+        参数:
+            _id: 函数的唯一标识符
+            
+        返回:
+            以行号为键，包含语句标签、名称、控制结构类型和局部类型的字典
+        """
         n = lvd.feature_extraction(svddc.BigVulDataset.itempath(_id), return_nodes=True)
         keepcols = ["_label", "name", "controlStructureType", "local_type"]
         n = n.set_index("lineNumber")[keepcols]
         return n.to_dict("index")
 
     def test_item(self, idx):
-        """Get test item information."""
-        _id = self.test_data.idx2id[idx]
-        preds = self.all_funcs[idx]
-        f_data = self.func_metadata(_id)
-        s_data = self.stmt_metadata(_id)
+        """获取测试项目的信息，包括函数和语句的预测结果。
+        
+        参数:
+            idx: 测试项目的索引
+            
+        返回:
+            tuple: (函数数据字典, 语句数据字典)
+        """
+        _id = self.test_data.idx2id[idx]  # 获取测试项目的唯一标识符
+        preds = self.all_funcs[idx]  # 获取模型预测结果
+        f_data = self.func_metadata(_id)  # 获取函数元数据
+        s_data = self.stmt_metadata(_id)  # 获取语句元数据
 
-        # Format func data
-        f_data["pred"] = preds[2].max().item()
-        f_data["vul"] = max(preds[1])
+        # 格式化函数数据
+        f_data["pred"] = preds[2].max().item()  # 函数级预测结果
+        f_data["vul"] = max(preds[1])  # 函数级实际标签
 
-        # Format statement data
+        # 格式化语句数据
         s_pred_data = defaultdict(dict)
 
         for i in range(len(preds[0])):
-            s_pred_data[preds[3][i]]["vul"] = preds[1][i]
+            line_num = preds[3][i]  # 语句行号
+            s_pred_data[line_num]["vul"] = preds[1][i]  # 语句级实际标签
             if f_data["pred"] == 1:
-                s_pred_data[preds[3][i]]["pred"] = list(preds[0][i])
+                s_pred_data[line_num]["pred"] = list(preds[0][i])  # 语句级预测结果
             else:
-                s_pred_data[preds[3][i]]["pred"] = [1, 0]
-            s_pred_data[preds[3][i]].update(s_data[preds[3][i]])
+                s_pred_data[line_num]["pred"] = [1, 0]  # 如果函数被预测为非漏洞，语句也被预测为非漏洞
+            s_pred_data[line_num].update(s_data[line_num])  # 添加语句元数据
 
         return f_data, dict(s_pred_data)
 
     def eval_test(self):
-        """Eval all test."""
+        """评估所有测试数据。
+        
+        遍历所有测试数据，收集函数和语句的预测结果和实际标签，
+        存储在self.func_results和self.stmt_results中。
+        记录处理失败的项目数量和错误信息。
+        """
         self.func_results = []
         self.stmt_results = []
         self.failed = 0

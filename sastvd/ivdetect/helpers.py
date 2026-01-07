@@ -1,4 +1,8 @@
-"""Implementation of IVDetect."""
+"""IVDetect漏洞检测方法的实现。
+
+该模块包含IVDetect模型的核心组件，包括特征提取、模型架构和数据集处理。
+IVDetect是一种基于图神经网络的漏洞检测方法，能够解释模型预测结果。
+"""
 
 
 import pickle as pkl
@@ -31,13 +35,20 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 def feature_extraction(filepath):
-    """Extract relevant components of IVDetect Code Representation.
+    """提取IVDetect代码表示的相关组件。
 
-    DEBUGGING:
+    该函数从给定的代码文件中提取IVDetect模型所需的各种特征表示，
+    包括：
+    1. 分词后的子标记序列（subseq）
+    2. 行级AST（抽象语法树）表示
+    3. 变量名和类型信息
+    4. 数据依赖和控制依赖上下文
+
+    调试信息：
     filepath = "/home/david/Documents/projects/singularity-sastvd/storage/processed/bigvul/before/180189.c"
     filepath = "/home/david/Documents/projects/singularity-sastvd/storage/processed/bigvul/before/182480.c"
 
-    PRINTING:
+    打印信息：
     svdj.plot_graph_node_edge_df(nodes, svdj.rdg(edges, "ast"), [24], 0)
     svdj.plot_graph_node_edge_df(nodes, svdj.rdg(edges, "reftype"))
     pd.options.display.max_colwidth = 500
@@ -45,10 +56,23 @@ def feature_extraction(filepath):
     print(nametypes.to_markdown(mode="github", index=0))
     print(uedge.to_markdown(mode="github", index=0))
 
-    4/5 COMPARISON:
+    4/5 比较：
     Theirs: 31, 22, 13, 10, 6, 29, 25, 23
     Ours  : 40, 30, 19, 14, 7, 38, 33, 31
     Pred  : 40,   , 19, 14, 7, 38, 33, 31
+
+    参数
+    ----------
+    filepath: str
+        代码文件的路径
+
+    返回
+    -------
+    tuple或None
+        如果成功，返回包含两个元素的元组：
+        - pdg_nodes: pandas.DataFrame，包含节点信息和特征
+        - pdg_edges: tuple，包含边的源节点和目标节点列表
+        如果处理失败，返回None
     """
     cache_name = "_".join(str(filepath).split("/")[-3:])
     cachefp = svd.get_dir(svd.cache_dir() / "ivdetect_feat_ext") / Path(cache_name).stem
@@ -206,12 +230,30 @@ def feature_extraction(filepath):
 
 
 class GruWrapper(nn.Module):
-    """Get last state from GRU."""
+    """GRU包装器，用于获取GRU的最后一个状态。
+
+    该类封装了PyTorch的GRU模型，提供了从动态序列中提取最后一个隐藏状态的功能。
+    使用dl.DynamicRNN来处理可变长度的序列输入。
+    """
 
     def __init__(
         self, input_size, hidden_size, num_layers=1, dropout=0, bidirectional=False
     ):
-        """Initilisation."""
+        """初始化GRU包装器。
+
+        参数
+        ----------
+        input_size: int
+            输入特征的维度
+        hidden_size: int
+            隐藏状态的维度
+        num_layers: int, 可选
+            GRU的层数（默认为1）
+        dropout: float, 可选
+            层间 dropout 概率（默认为0）
+        bidirectional: bool, 可选
+            是否使用双向GRU（默认为False）
+        """
         super(GruWrapper, self).__init__()
         self.gru = dl.DynamicRNN(
             nn.GRU(
@@ -225,40 +267,92 @@ class GruWrapper(nn.Module):
         )
 
     def forward(self, x, x_lens, return_sequence=False):
-        """Forward pass."""
-        # Load data from disk on CPU
+        """前向传播。
+
+        参数
+        ----------
+        x: torch.Tensor
+            输入序列张量，形状为 [batch_size, seq_len, input_size]
+        x_lens: torch.Tensor
+            每个序列的实际长度，形状为 [batch_size]
+        return_sequence: bool, 可选
+            是否返回完整序列的输出（默认为False）
+
+        返回
+        -------
+        tuple
+            - out: torch.Tensor
+                如果 return_sequence 为 True，则形状为 [batch_size, seq_len, hidden_size]
+                否则，形状为 [batch_size, hidden_size]
+            - hidden: torch.Tensor
+                最后一个时间步的隐藏状态
+        """
+        # 前向传播通过GRU
         out, hidden = self.gru(x, x_lens)
         if return_sequence:
             return out, hidden
+        # 提取每个序列的最后一个有效时间步的输出
         out = out[range(out.shape[0]), x_lens - 1, :]
         return out, hidden
 
 
 class IVDetect(nn.Module):
-    """IVDetect model."""
+    """IVDetect漏洞检测模型。
+
+    IVDetect是一种基于图神经网络的漏洞检测方法，能够结合多种代码表示
+    （包括序列特征、AST结构和数据/控制依赖）来检测代码中的漏洞，
+    并提供可解释的预测结果。
+
+    模型架构：
+    1. 多个GRU网络用于处理不同的序列特征
+    2. TreeLSTM用于处理AST结构特征
+    3. BiGRU用于融合不同特征表示
+    4. GCN用于捕获代码行之间的依赖关系
+    5. 全连接层用于最终的漏洞分类
+    """
 
     def __init__(self, input_size, hidden_size, dropout=0.5):
-        """Initilisation."""
+        """初始化IVDetect模型。
+
+        参数
+        ----------
+        input_size: int
+            输入特征的维度
+        hidden_size: int
+            隐藏状态的维度
+        dropout: float, 可选
+            dropout 概率（默认为0.5）
+        """
         super(IVDetect, self).__init__()
+        # 初始化GRU包装器用于处理不同的序列特征
         self.gru = GruWrapper(input_size, hidden_size)
         self.gru2 = GruWrapper(input_size, hidden_size)
         self.gru3 = GruWrapper(input_size, hidden_size)
         self.gru4 = GruWrapper(input_size, hidden_size)
+        # 双向GRU用于特征融合
         self.bigru = nn.GRU(
             hidden_size, hidden_size, bidirectional=True, batch_first=True
         )
+        # 设备选择
         self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+        # TreeLSTM用于处理AST结构
         self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0)
+        # GCN用于图表示学习
         self.gcn = GraphConv(hidden_size, 2)
+        # 全连接层用于特征连接
         self.connect = nn.Linear(hidden_size * 3 * 2, hidden_size)
+        # Dropout概率
         self.dropout = dropout
+        # 隐藏层大小
         self.h_size = hidden_size
 
     def forward(self, g, dataset, e_weights=[]):
-        """Forward pass.
+        """前向传播。
 
-        DEBUG:
+        执行IVDetect模型的前向传播，处理图输入并生成预测结果。
+
+        调试示例：
         import sastvd.helpers.graphs as svdgr
         from importlib import reload
         dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -273,8 +367,21 @@ class IVDetect(nn.Module):
         model = IVDetect(200, 64).to(dev)
         ret = model(g, dataset)
 
+        参数
+        ----------
+        g: DGLGraph
+            输入图，包含节点特征和边信息
+        dataset: BigVulDatasetIVDetect
+            数据集对象，用于获取额外的特征信息
+        e_weights: list, 可选
+            边权重列表，用于加权图连接（默认为空列表）
+
+        返回
+        -------
+        torch.Tensor
+            处理后的图节点特征，形状为 [num_nodes, 2]，表示每个节点的漏洞预测概率
         """
-        # Load data from disk on CPU
+        # 从CPU上的磁盘加载数据
         nodes = list(
             zip(
                 g.ndata["_SAMPLE"].detach().cpu().int().numpy(),
@@ -305,7 +412,7 @@ class IVDetect(nn.Module):
             feat["f3"].append(f3)
             feat["f3_lens"].append(f3_lens)
 
-        # Pass through GRU / TreeLSTM
+        # 通过GRU / TreeLSTM处理
         F1, _ = self.gru(
             pad_sequence(feat["f1"], batch_first=True).to(self.dev),
             torch.Tensor(feat["f1_lens"]).long(),
@@ -324,7 +431,7 @@ class IVDetect(nn.Module):
         #     torch.Tensor(feat["f1_lens"]).long(),
         # )
 
-        # Fill null values (e.g. line has no AST representation / datacontrol deps)
+        # 填充空值（例如，行没有AST表示或数据/控制依赖）
         F2 = torch.stack(
             [F2[i] if i in F2 else torch.zeros(self.h_size).to(self.dev) for i in nodes]
         )
@@ -353,16 +460,47 @@ class IVDetect(nn.Module):
 
 
 class BigVulDatasetIVDetect(svddc.BigVulDataset):
-    """IVDetect version of BigVul."""
+    """IVDetect版本的BigVul数据集。
+
+    继承自BigVulDataset类，为IVDetect模型提供特定的数据加载和处理功能。
+    该类负责将原始代码转换为IVDetect模型所需的特征表示，包括：
+    1. 加载GloVe词嵌入用于特征向量化
+    2. 提取代码的AST结构、数据依赖和控制依赖
+    3. 构建用于模型训练和推理的图表示
+    """
 
     def __init__(self, **kwargs):
-        """Init."""
+        """初始化IVDetect版本的BigVul数据集。
+
+        参数
+        ----------
+        **kwargs: dict
+            传递给父类BigVulDataset的关键字参数
+        """
         super(BigVulDatasetIVDetect, self).__init__(**kwargs)
+        # 加载GloVe词嵌入用于代码特征向量化
         glove_path = svd.processed_dir() / "bigvul/glove_False/vectors.txt"
         self.emb_dict, _ = svdg.glove_dict(glove_path)
 
     def item(self, _id):
-        """Get item data."""
+        """获取指定ID的数据项。
+
+        根据给定的ID获取数据集项，包括代码的各种特征表示和AST图。
+
+        参数
+        ----------
+        _id: int
+            数据项的ID
+
+        返回
+        -------
+        dict
+            包含以下键的字典：
+            - df: pandas.DataFrame
+                包含代码行级别的特征数据
+            - asts: list
+                包含每个代码行的AST图表示的列表
+        """
         n, _ = feature_extraction(svddc.BigVulDataset.itempath(_id))
         n.subseq = n.subseq.apply(lambda x: svdg.get_embeddings(x, self.emb_dict, 200))
         n.nametypes = n.nametypes.apply(

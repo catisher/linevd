@@ -19,10 +19,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def best_f1(true, pos_logits):
-    """Find optimal threshold for F1 score.
+    """找到F1分数的最佳阈值。
 
-    true = [1, 0, 0, 1]
-    pos_logits = [0.27292988, 0.27282527, 0.7942509, 0.20574914]
+    参数:
+        true (list): 真实标签列表，例如 [1, 0, 0, 1]
+        pos_logits (list): 正类的预测概率列表，例如 [0.27292988, 0.27282527, 0.7942509, 0.20574914]
+
+    返回:
+        float: 最佳F1分数对应的阈值
     """
     precision, recall, thresholds = precision_recall_curve(true, pos_logits)
     thresh_scores = []
@@ -38,7 +42,16 @@ def best_f1(true, pos_logits):
 
 
 def get_metrics(true, pred):
-    """Get relevant metrics given true labels and logits."""
+    """根据真实标签和预测结果计算相关的评估指标。
+
+    参数:
+        true (list): 真实标签列表
+        pred (list): 预测结果列表
+
+    返回:
+        dict: 包含各项评估指标的字典，包括准确率(acc)、F1分数(f1)、召回率(rec)、精确率(prec)、
+              马修斯相关系数(mcc)、误报率(fpr)和漏报率(fnr)
+    """
     metrics = {}
     metrics["acc"] = accuracy_score(true, pred)
     metrics["f1"] = f1_score(true, pred, zero_division=0)
@@ -57,7 +70,17 @@ def get_metrics(true, pred):
 
 
 def get_metrics_logits(true, logits):
-    """Call get_metrics with logits."""
+    """从模型的logits计算评估指标，内部调用get_metrics函数。
+
+    参数:
+        true (list or torch.Tensor): 真实标签
+        logits (torch.Tensor): 模型的logits输出
+
+    返回:
+        dict: 包含各项评估指标的字典，包括准确率(acc)、F1分数(f1)、召回率(rec)、精确率(prec)、
+              马修斯相关系数(mcc)、误报率(fpr)、漏报率(fnr)、ROC曲线下面积(roc_auc)、
+              PR曲线下面积(pr_auc)、正类PR曲线下面积(pr_auc_pos)和损失值(loss)
+    """
     loss = F.cross_entropy(logits, true).detach().cpu().item()
     if torch.is_tensor(true):
         true_oh = torch.nn.functional.one_hot(true).detach().cpu().numpy()
@@ -85,7 +108,16 @@ def get_metrics_logits(true, logits):
 
 
 def met_dict_to_str(md, prefix="", verbose=1):
-    """Convert metric dictionary to string for printing."""
+    """将指标字典转换为字符串以便打印输出。
+
+    参数:
+        md (dict): 包含评估指标的字典
+        prefix (str): 打印字符串的前缀，默认为空
+        verbose (int): 详细程度，1表示打印输出，0表示不打印
+
+    返回:
+        str: 格式化后的指标字符串
+    """
     ret_str = prefix
     for k, v in md.items():
         if k == "loss":
@@ -98,17 +130,24 @@ def met_dict_to_str(md, prefix="", verbose=1):
 
 
 def met_dict_to_writer(md, step, writer, prefix):
-    """Given a dict of eval metrics, write to given Tensorboard writer."""
+    """将评估指标字典写入Tensorboard日志文件。
+
+    参数:
+        md (dict): 包含评估指标的字典
+        step (int): 当前训练步数
+        writer (SummaryWriter): Tensorboard的SummaryWriter实例
+        prefix (str): 写入日志时的前缀
+    """
     for k, v in md.items():
         writer.add_scalar(f"{prefix}/{k}", v, step)
 
 
 def print_seperator(strings: list, max_len: int):
-    """Print text inside a one-line string with "=" seperation to a max length.
+    """在一行中打印带有"="分隔符的文本，总长度不超过指定的最大长度。
 
-    Args:
-        strings (list): List of strings.
-        max_len (int): Max length.
+    参数:
+        strings (list): 要打印的字符串列表
+        max_len (int): 输出的最大长度
     """
     midpoints = int(max_len / len(strings))
     strings = [str(i) for i in strings]
@@ -127,9 +166,15 @@ def print_seperator(strings: list, max_len: int):
 
 
 def dict_mean(dict_list):
-    """Get mean of values from list of dicts.
+    """计算字典列表中每个键值的平均值。
 
-    https://stackoverflow.com/questions/29027792
+    参考: https://stackoverflow.com/questions/29027792
+
+    参数:
+        dict_list (list): 字典列表，所有字典应具有相同的键
+
+    返回:
+        dict: 包含每个键平均值的字典
     """
     mean_dict = {}
     for key in dict_list[0].keys():
@@ -140,7 +185,7 @@ def dict_mean(dict_list):
 
 
 class LogWriter:
-    """Writer class for logging PyTorch model performance."""
+    """用于记录PyTorch模型性能的日志记录器类。"""
 
     def __init__(
         self,
@@ -150,11 +195,14 @@ class LogWriter:
         log_every: int = 10,
         val_every: int = 50,
     ):
-        """Init writer.
+        """初始化日志记录器。
 
-        Args:
-            model: Pytorch model.
-            path (str): Path to save log files.
+        参数:
+            model: PyTorch模型实例
+            path (str): 保存日志文件的路径
+            max_patience (int): 早停的最大耐心值，默认为100
+            log_every (int): 日志记录的频率，每多少步记录一次，默认为10
+            val_every (int): 验证的频率，每多少步验证一次，默认为50
         """
         self._model = model
         self._best_val_loss = 100
@@ -169,7 +217,12 @@ class LogWriter:
         self.save_attrs = ["_best_val_loss", "_patience", "_epoch", "_step"]
 
     def log(self, train_mets, val_mets):
-        """Log information."""
+        """记录训练和验证的指标信息。
+
+        参数:
+            train_mets (dict): 训练集上的评估指标
+            val_mets (dict): 验证集上的评估指标
+        """
         if self._step % self._log_every != 0:
             self.step()
             return
@@ -207,42 +260,54 @@ class LogWriter:
         self.step()
 
     def test(self, test_mets):
-        """Helper function to write test mets."""
+        """记录测试集上的评估指标。
+
+        参数:
+            test_mets (dict): 测试集上的评估指标
+        """
         print_seperator(["\x1b[36mTest Set\x1b[39m"], 135)
         met_dict_to_str(test_mets, "TS = ")
 
     def log_val(self):
-        """Check whether should validate or not."""
+        """检查是否应该进行验证。
+
+        返回:
+            bool: 如果当前步数是验证步数的倍数，则返回True，否则返回False
+        """
         if self._step % self._val_every == 0:
             return True
         return False
 
     def step(self):
-        """Increment step."""
+        """增加当前训练步数。"""
         self._step += 1
 
     def epoch(self):
-        """Increment epoch."""
+        """增加当前训练轮数。"""
         self._epoch += 1
 
     def stop(self):
-        """Check if should stop training."""
+        """检查是否应该停止训练（早停条件）。
+
+        返回:
+            bool: 如果当前耐心值超过最大耐心值，则返回True（停止训练），否则返回False
+        """
         return self._patience > self._max_patience
 
     def load_best_model(self):
-        """Load best model."""
+        """加载保存的最佳模型权重到当前模型实例。"""
         torch.cuda.empty_cache()
         self._model.load_state_dict(torch.load(self._path / "best.model"))
 
     def save_logger(self):
-        """Save class attributes."""
+        """保存日志记录器的状态和当前模型权重。"""
         with open(self._path / "log.pkl", "wb") as f:
             f.write(pkl.dumps(dict([(i, getattr(self, i)) for i in self.save_attrs])))
         with open(self._path / "current.model", "wb") as f:
             torch.save(self._model.state_dict(), f)
 
     def load_logger(self):
-        """Load class attributes."""
+        """加载之前保存的日志记录器状态和模型权重。"""
         with open(self._path / "log.pkl", "rb") as f:
             attrs = pkl.load(f)
             for k, v in attrs.items():

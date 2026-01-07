@@ -12,14 +12,18 @@ from tqdm import tqdm
 
 class NodeExplainerModule(nn.Module):
     """
-    A Pytorch module for explaining a node's prediction based on its computational graph and node features.
-    Use two masks: One mask on edges, and another on nodes' features.
-    So far due to the limit of DGL on edge mask operation, this explainer need the to-be-explained models to
-    accept an additional input argument, edge mask, and apply this mask in their inner message parse operation.
-    This is current walk_around to use edge masks.
+    一个PyTorch模块，用于基于计算图和节点特征解释节点的预测结果。
+    使用两种掩码：一种用于边，另一种用于节点特征。
+    由于DGL在边掩码操作上的限制，此解释器需要被解释的模型
+    接受一个额外的输入参数（边掩码），并在其内部消息解析操作中应用此掩码。
+    这是当前使用边掩码的解决方法。
     """
 
-    # Class inner variables
+    # 类内部变量：损失组件的系数权重
+    # g_size: 边掩码大小损失的系数
+    # feat_size: 节点特征掩码大小损失的系数
+    # g_ent: 边掩码熵损失的系数
+    # feat_ent: 节点特征掩码熵损失的系数
     loss_coef = {"g_size": 0.05, "feat_size": 1.0, "g_ent": 0.1, "feat_ent": 0.1}
 
     def __init__(
@@ -31,6 +35,16 @@ class NodeExplainerModule(nn.Module):
         agg_fn="sum",
         mask_bias=False,
     ):
+        """初始化节点解释器模块。
+
+        参数:
+            model: 要解释的GNN模型
+            num_edges: 计算图中的边数
+            node_feat_dim: 节点特征的维度
+            activation: 掩码使用的激活函数（默认为"sigmoid"）
+            agg_fn: 聚合函数（默认为"sum"）
+            mask_bias: 是否为边掩码添加偏置（默认为False）
+        """
         super(NodeExplainerModule, self).__init__()
         self.model = model
         self.model.eval()
@@ -40,22 +54,24 @@ class NodeExplainerModule(nn.Module):
         self.agg_fn = agg_fn
         self.mask_bias = mask_bias
 
-        # Initialize parameters on masks
+        # 初始化掩码参数
         self.edge_mask, self.edge_mask_bias = self.create_edge_mask(self.num_edges)
         self.node_feat_mask = self.create_node_feat_mask(self.node_feat_dim)
 
     def create_edge_mask(self, num_edges, init_strategy="normal", const=1.0):
         """
-        Based on the number of nodes in the computational graph, create a learnable mask of edges.
-        To adopt to DGL, change this mask from N*N adjacency matrix to the No. of edges
-        Parameters
+        根据计算图中的边数，创建可学习的边掩码。
+        为了适配DGL，将此掩码从N*N邻接矩阵转换为边的数量
+
+        参数
         ----------
-        num_edges: Integer N, specify the number of edges.
-        init_strategy: String, specify the parameter initialization method
-        const: Float, a value for constant initialization
-        Returns
+        num_edges: 整数N，指定边的数量。
+        init_strategy: 字符串，指定参数初始化方法
+        const: 浮点数，常量初始化的值
+
+        返回
         -------
-        mask and mask bias: Tensor, all in shape of N*1
+        mask和mask_bias: 张量，形状均为N*1
         """
         mask = nn.Parameter(th.Tensor(num_edges, 1))
 
@@ -76,14 +92,16 @@ class NodeExplainerModule(nn.Module):
 
     def create_node_feat_mask(self, node_feat_dim, init_strategy="normal"):
         """
-        Based on the dimensions of node feature in the computational graph, create a learnable mask of features.
-        Parameters
+        根据计算图中节点特征的维度，创建可学习的特征掩码。
+
+        参数
         ----------
-        node_feat_dim: Integer N, dimensions of node feature
-        init_strategy: String, specify the parameter initialization method
-        Returns
+        node_feat_dim: 整数N，节点特征的维度
+        init_strategy: 字符串，指定参数初始化方法
+
+        返回
         -------
-        mask: Tensor, in shape of N
+        mask: 张量，形状为N
         """
         mask = nn.Parameter(th.Tensor(node_feat_dim))
 
@@ -98,21 +116,24 @@ class NodeExplainerModule(nn.Module):
 
     def forward(self, graph, n_feats, dataset):
         """
-        Calculate prediction results after masking input of the given model.
-        Parameters
+        计算对给定模型的输入应用掩码后的预测结果。
+
+        参数
         ----------
-        graph: DGLGraph, Should be a sub_graph of the target node to be explained.
-        n_idx: Tensor, an integer, index of the node to be explained.
-        Returns
+        graph: DGLGraph，应该是要解释的目标节点的子图。
+        n_feats: 节点特征张量
+        dataset: 数据集对象
+
+        返回
         -------
-        new_logits: Tensor, in shape of N * Num_Classes
+        new_logits: 张量，形状为N * Num_Classes
         """
 
-        # Step 1: Mask node feature with the inner feature mask
+        # 步骤1: 使用内部特征掩码对节点特征进行掩码
         new_n_feats = n_feats * self.node_feat_mask.sigmoid()
         edge_mask = self.edge_mask.sigmoid()
 
-        # Step 2: Add compute logits after mask node features and edges
+        # 步骤2: 在对节点特征和边进行掩码后计算logits
         graph.ndata["_FEAT"] = new_n_feats
         new_logits = self.model(graph, dataset, edge_mask)
 
@@ -120,32 +141,34 @@ class NodeExplainerModule(nn.Module):
 
     def _loss(self, pred_logits, pred_label):
         """
-        Compute the losses of this explainer, which include 6 parts in author's codes:
-        1. The prediction loss between predict logits before and after node and edge masking;
-        2. Loss of edge mask itself, which tries to put the mask value to either 0 or 1;
-        3. Loss of node feature mask itself,  which tries to put the mask value to either 0 or 1;
-        4. L2 loss of edge mask weights, but in sum not in mean;
-        5. L2 loss of node feature mask weights, which is NOT used in the author's codes;
-        6. Laplacian loss of the adj matrix.
-        In the PyG implementation, there are 5 types of losses:
-        1. The prediction loss between logits before and after node and edge masking;
-        2. Sum loss of edge mask weights;
-        3. Loss of edge mask entropy, which tries to put the mask value to either 0 or 1;
-        4. Sum loss of node feature mask weights;
-        5. Loss of node feature mask entropy, which tries to put the mask value to either 0 or 1;
-        Parameters
+        计算此解释器的损失，在作者的代码中包括6个部分：
+        1. 节点和边掩码前后预测logits之间的预测损失；
+        2. 边掩码本身的损失，尝试将掩码值设为0或1；
+        3. 节点特征掩码本身的损失，尝试将掩码值设为0或1；
+        4. 边掩码权重的L2损失，但使用总和而不是平均值；
+        5. 节点特征掩码权重的L2损失，在作者的代码中未使用；
+        6. 邻接矩阵的拉普拉斯损失。
+        在PyG实现中，有5种类型的损失：
+        1. 节点和边掩码前后logits之间的预测损失；
+        2. 边掩码权重的总和损失；
+        3. 边掩码熵损失，尝试将掩码值设为0或1；
+        4. 节点特征掩码权重的总和损失；
+        5. 节点特征掩码熵损失，尝试将掩码值设为0或1；
+
+        参数
         ----------
-        pred_logits：Tensor, N-dim logits output of model
-        pred_label: Tensor, N-dim one-hot label of the label
-        Returns
+        pred_logits：张量，模型输出的N维logits
+        pred_label: 张量，N维的one-hot标签
+
+        返回
         -------
-        loss: Scalar, the overall loss of this explainer.
+        loss: 标量，此解释器的总体损失。
         """
-        # 1. prediction loss
+        # 1. 预测损失
         log_logit = -F.log_softmax(pred_logits, dim=-1)
         pred_loss = th.sum(log_logit * pred_label)
 
-        # 2. edge mask loss
+        # 2. 边掩码损失
         if self.activation == "sigmoid":
             edge_mask = th.sigmoid(self.edge_mask)
         elif self.activation == "relu":
@@ -154,13 +177,13 @@ class NodeExplainerModule(nn.Module):
             raise ValueError()
         edge_mask_loss = self.loss_coef["g_size"] * th.sum(edge_mask)
 
-        # 3. edge mask entropy loss
+        # 3. 边掩码熵损失
         edge_ent = -edge_mask * th.log(edge_mask + 1e-8) - (1 - edge_mask) * th.log(
             1 - edge_mask + 1e-8
         )
         edge_ent_loss = self.loss_coef["g_ent"] * th.mean(edge_ent)
 
-        # 4. node feature mask loss
+        # 4. 节点特征掩码损失
         if self.activation == "sigmoid":
             node_feat_mask = th.sigmoid(self.node_feat_mask)
         elif self.activation == "relu":
@@ -169,7 +192,7 @@ class NodeExplainerModule(nn.Module):
             raise ValueError()
         node_feat_mask_loss = self.loss_coef["feat_size"] * th.sum(node_feat_mask)
 
-        # 5. node feature mask entry loss
+        # 5. 节点特征掩码熵损失
         node_feat_ent = -node_feat_mask * th.log(node_feat_mask + 1e-8) - (
             1 - node_feat_mask
         ) * th.log(1 - node_feat_mask + 1e-8)
@@ -190,20 +213,21 @@ def visualize_sub_graph(
     sub_graph, edge_weights=None, origin_nodes=None, center_node=None
 ):
     """
-    Use networkx to visualize the sub_graph and,
-    if edge weights are given, set edges with different fading of blue.
-    Parameters
+    使用networkx可视化子图，如果提供了边权重，将使用不同的蓝色淡化效果设置边。
+
+    参数
     ----------
-    sub_graph: DGLGraph, the sub_graph to be visualized.
-    edge_weights: Tensor, the same number of edges. Values are (0,1), default is None
-    origin_nodes: List, list of node ids that will be used to replace the node ids in the subgraph in visualization
-    center_node: Tensor, the node id in origin node list to be highlighted with different color
-    Returns
-    show the sub_graph
+    sub_graph: DGLGraph，要可视化的子图。
+    edge_weights: 张量，与边数相同。值范围为(0,1)，默认为None
+    origin_nodes: 列表，将用于在可视化中替换子图中节点ID的节点ID列表
+    center_node: 张量，要在原始节点列表中用不同颜色突出显示的节点ID
+
+    返回
     -------
+    显示子图
     """
-    # Extract original idx and map to the new networkx graph
-    # Convert to networkx graph
+    # 提取原始索引并映射到新的networkx图
+    # 转换为networkx图
     g = dgl.to_networkx(sub_graph)
     nx_edges = g.edges(data=True)
 
@@ -240,7 +264,7 @@ def visualize_sub_graph(
     nx.draw(g, pos, with_labels=True, node_color="b", **options)
     if not (center_node is None):
         nx.draw(
-            g,
+            g, 
             pos,
             nodelist=center_node.tolist(),
             with_labels=True,
@@ -252,19 +276,33 @@ def visualize_sub_graph(
 
 
 def gnnexplainer(model, graph, dataset):
-    """Run GNNExplainer to obtain lines in ranked importance."""
+    """运行GNNExplainer来获取按重要性排序的代码行。
+
+    GNNExplainer是一种用于解释图神经网络预测的方法，
+    通过训练可学习的边掩码和节点特征掩码来识别对预测最重要的子图结构和特征。
+
+    参数
+    ----------
+    model: 要解释的GNN模型
+    graph: DGLGraph，包含要解释的目标节点的子图
+    dataset: 数据集对象，提供模型所需的额外信息
+
+    返回
+    -------
+    list: 按重要性降序排列的代码行列表
+    """
     dev = th.device("cuda:0" if th.cuda.is_available() else "cpu")
 
-    # Create an explainer
+    # 创建解释器
     explainer = NodeExplainerModule(
         model=model, num_edges=graph.number_of_edges(), node_feat_dim=200
     )
     explainer.to(dev)
 
-    # define optimizer
+    # 定义优化器
     optim = th.optim.Adam(explainer.parameters(), lr=0.01, weight_decay=0)
 
-    # train the explainer for the given node
+    # 为给定节点训练解释器
     model.eval()
     model_logits = model(graph, dataset)
     model_predict = F.one_hot(th.argmax(model_logits, dim=-1), 2)
@@ -279,17 +317,17 @@ def gnnexplainer(model, graph, dataset):
         loss.backward()
         optim.step()
 
-    # visualize the importance of edges
+    # 可视化边的重要性
     edge_weights = explainer.edge_mask.sigmoid().detach()
 
-    # Get Aggregate weight importances into nodes
+    # 将权重重要性聚合到节点
     graph.ndata["line_importance"] = th.ones(graph.number_of_nodes(), device=dev) * 2
     graph.edata["edge_mask"] = edge_weights
     graph.update_all(
         fn.u_mul_e("line_importance", "edge_mask", "m"), fn.mean("m", "line_importance")
     )
 
-    # Return sorted list of line importances
+    # 返回按重要性排序的行列表
     ret = sorted(
         list(
             zip(

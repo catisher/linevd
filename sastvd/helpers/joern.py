@@ -12,9 +12,9 @@ from graphviz import Digraph
 
 
 def nodelabel2line(label: str):
-    """Given a node label, return the line number.
+    """从节点标签中提取行号。
 
-    Example:
+    示例：
     s = "METHOD_1.0: static long main()..."
     nodelabel2line(s)
     >>> '1.0'
@@ -26,7 +26,7 @@ def nodelabel2line(label: str):
 
 
 def randcolor():
-    """Generate random color."""
+    """生成随机颜色。"""
 
     def r():
         return random.randint(0, 255)
@@ -35,7 +35,7 @@ def randcolor():
 
 
 def get_digraph(nodes, edges, edge_label=True):
-    """Plote digraph given nodes and edges list."""
+    """根据节点和边列表绘制有向图。"""
     dot = Digraph(comment="Combined PDG")
 
     nodes = [n + [nodelabel2line(n[1])] for n in nodes]
@@ -79,7 +79,7 @@ def get_digraph(nodes, edges, edge_label=True):
 
 
 def run_joern(filepath: str, verbose: int):
-    """Extract graph using most recent Joern."""
+    """使用最新版本的Joern提取代码属性图(CPG)。"""
     script_file = svd.external_dir() / "get_func_graph.scala"
     filename = svd.external_dir() / filepath
     params = f"filename={filename}"
@@ -97,7 +97,7 @@ def run_joern(filepath: str, verbose: int):
 
 
 def get_node_edges(filepath: str, verbose=0):
-    """Get node and edges given filepath (must run after run_joern).
+    """根据文件路径获取节点和边信息（必须在run_joern之后运行）。
 
     filepath = "/home/david/Documents/projects/singularity-sastvd/storage/processed/bigvul/before/53.c"
     """
@@ -185,9 +185,9 @@ def get_node_edges(filepath: str, verbose=0):
 
 
 def plot_node_edges(filepath: str, lineNumber: int = -1, filter_edges=[]):
-    """Plot node edges given filepath (must run after get_node_edges).
+    """根据文件路径绘制节点和边（必须在get_node_edges之后运行）。
 
-    TO BE DEPRECATED.
+    TO BE DEPRECATED.（即将被废弃）
     """
     nodes, edges = get_node_edges(filepath)
 
@@ -214,7 +214,7 @@ def plot_node_edges(filepath: str, lineNumber: int = -1, filter_edges=[]):
 
 
 def full_run_joern(filepath: str, verbose=0):
-    """Run full Joern extraction and save output."""
+    """运行完整的Joern提取流程并保存输出。"""
     try:
         run_joern(filepath, verbose)
         nodes, edges = get_node_edges(filepath)
@@ -226,7 +226,7 @@ def full_run_joern(filepath: str, verbose=0):
 
 
 def full_run_joern_from_string(code: str, dataset: str, iid: str, verbose=0):
-    """Run full joern from a string instead of file."""
+    """从字符串而不是文件运行完整的Joern提取流程。"""
     savedir = svd.get_dir(svd.interim_dir() / dataset)
     savepath = savedir / f"{iid}.c"
     with open(savepath, "w") as f:
@@ -235,7 +235,7 @@ def full_run_joern_from_string(code: str, dataset: str, iid: str, verbose=0):
 
 
 def neighbour_nodes(nodes, edges, nodeids: list, hop: int = 1, intermediate=True):
-    """Given nodes, edges, nodeid, return hop neighbours.
+    """给定节点、边和节点ID，返回指定跳数的邻居节点。
 
     nodes = pd.DataFrame()
 
@@ -282,7 +282,7 @@ def neighbour_nodes(nodes, edges, nodeids: list, hop: int = 1, intermediate=True
 
 
 def rdg(edges, gtype):
-    """Reduce graph given type."""
+    """根据图类型过滤和简化图。"""
     if gtype == "reftype":
         return edges[(edges.etype == "EVAL_TYPE") | (edges.etype == "REF")]
     if gtype == "ast":
@@ -302,7 +302,7 @@ def rdg(edges, gtype):
 
 
 def assign_line_num_to_local(nodes, edges, code):
-    """Assign line number to local variable in CPG."""
+    """为代码属性图(CPG)中的局部变量分配行号。"""
     label_nodes = nodes[nodes._label == "LOCAL"].id.tolist()
     onehop_labels = neighbour_nodes(nodes, rdg(edges, "ast"), label_nodes, 1, False)
     twohop_labels = neighbour_nodes(nodes, rdg(edges, "reftype"), label_nodes, 2, False)
@@ -343,11 +343,11 @@ def assign_line_num_to_local(nodes, edges, code):
 
 
 def drop_lone_nodes(nodes, edges):
-    """Remove nodes with no edge connections.
+    """移除没有边连接的孤立节点。
 
-    Args:
-        nodes (pd.DataFrame): columns are id, node_label
-        edges (pd.DataFrame): columns are outnode, innode, etype
+    参数:
+        nodes (pd.DataFrame): 包含id和node_label列的节点数据框
+        edges (pd.DataFrame): 包含outnode, innode和etype列的边数据框
     """
     nodes = nodes[(nodes.id.isin(edges.innode)) | (nodes.id.isin(edges.outnode))]
     return nodes
@@ -356,13 +356,13 @@ def drop_lone_nodes(nodes, edges):
 def plot_graph_node_edge_df(
     nodes, edges, nodeids=[], hop=1, drop_lone_nodes=True, edge_label=True
 ):
-    """Plot graph from node and edge dataframes.
+    """从节点和边的数据框绘制图形。
 
-    Args:
-        nodes (pd.DataFrame): columns are id, node_label
-        edges (pd.DataFrame): columns are outnode, innode, etype
-        drop_lone_nodes (bool): hide nodes with no in/out edges.
-        lineNumber (int): Plot subgraph around this node.
+    参数:
+        nodes (pd.DataFrame): 包含id和node_label列的节点数据框
+        edges (pd.DataFrame): 包含outnode, innode和etype列的边数据框
+        drop_lone_nodes (bool): 是否隐藏没有入边/出边的节点
+        lineNumber (int): 围绕此节点绘制子图
     """
     # Drop lone nodes
     if drop_lone_nodes:

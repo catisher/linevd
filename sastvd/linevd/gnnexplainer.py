@@ -1,3 +1,14 @@
+"""图神经网络解释器模块。
+
+该模块实现了GNNExplainer算法，用于解释图神经网络模型对节点预测的结果。
+主要功能包括：
+1. 使用边掩码和节点特征掩码来识别影响模型预测的关键边和特征
+2. 基于PyTorch Lightning实现训练流程
+3. 提供节点重要性分数计算功能
+
+该实现针对DGL框架进行了优化，能够有效解释基于图的漏洞检测模型。
+"""
+
 import math
 
 import dgl
@@ -9,14 +20,13 @@ import torch.nn.functional as F
 
 class NodeExplainerModule(nn.Module):
     """
-    A Pytorch module for explaining a node's prediction based on its computational graph and node features.
-    Use two masks: One mask on edges, and another on nodes' features.
-    So far due to the limit of DGL on edge mask operation, this explainer need the to-be-explained models to
-    accept an additional input argument, edge mask, and apply this mask in their inner message parse operation.
-    This is current walk_around to use edge masks.
+    基于计算图和节点特征解释节点预测的PyTorch模块。
+    使用两种掩码：一种用于边，另一种用于节点特征。
+    由于DGL对边掩码操作的限制，被解释的模型需要接受额外的边掩码参数
+    并在其内部消息传递操作中应用此掩码。
     """
 
-    # Class inner variables
+    # 类内部变量：损失函数系数
     loss_coef = {"g_size": 0.05, "feat_size": 1.0, "g_ent": 0.1, "feat_ent": 0.1}
 
     def __init__(
@@ -28,31 +38,41 @@ class NodeExplainerModule(nn.Module):
         agg_fn="sum",
         mask_bias=False,
     ):
+        """初始化节点解释器模块。
+        
+        参数:
+            model: 要解释的图神经网络模型
+            num_edges: 图中边的数量
+            node_feat_dim: 节点特征的维度
+            activation: 激活函数类型，默认为'sigmoid'
+            agg_fn: 聚合函数类型，默认为'sum'
+            mask_bias: 是否为掩码添加偏置，默认为False
+        """
         super(NodeExplainerModule, self).__init__()
         self.model = model
-        self.model.eval()
+        self.model.eval()  # 设置模型为评估模式
         self.num_edges = num_edges
         self.node_feat_dim = node_feat_dim
         self.activation = activation
         self.agg_fn = agg_fn
         self.mask_bias = mask_bias
 
-        # Initialize parameters on masks
+        # 初始化掩码参数
         self.edge_mask, self.edge_mask_bias = self.create_edge_mask(self.num_edges)
         self.node_feat_mask = self.create_node_feat_mask(self.node_feat_dim)
 
     def create_edge_mask(self, num_edges, init_strategy="normal", const=1.0):
         """
-        Based on the number of nodes in the computational graph, create a learnable mask of edges.
-        To adopt to DGL, change this mask from N*N adjacency matrix to the No. of edges
-        Parameters
-        ----------
-        num_edges: Integer N, specify the number of edges.
-        init_strategy: String, specify the parameter initialization method
-        const: Float, a value for constant initialization
-        Returns
-        -------
-        mask and mask bias: Tensor, all in shape of N*1
+        根据计算图中边的数量，创建可学习的边掩码。
+        为了适应DGL，将掩码从N*N邻接矩阵转换为边的数量。
+        
+        参数:
+            num_edges: 边的数量
+            init_strategy: 参数初始化方法，默认为'normal'
+            const: 常量初始化的值，默认为1.0
+            
+        返回:
+            mask和mask_bias: 形状为N*1的张量
         """
         mask = nn.Parameter(th.Tensor(num_edges, 1))
 
@@ -73,14 +93,14 @@ class NodeExplainerModule(nn.Module):
 
     def create_node_feat_mask(self, node_feat_dim, init_strategy="normal"):
         """
-        Based on the dimensions of node feature in the computational graph, create a learnable mask of features.
-        Parameters
-        ----------
-        node_feat_dim: Integer N, dimensions of node feature
-        init_strategy: String, specify the parameter initialization method
-        Returns
-        -------
-        mask: Tensor, in shape of N
+        根据计算图中节点特征的维度，创建可学习的特征掩码。
+        
+        参数:
+            node_feat_dim: 节点特征的维度
+            init_strategy: 参数初始化方法，默认为'normal'
+            
+        返回:
+            mask: 形状为N的张量
         """
         mask = nn.Parameter(th.Tensor(node_feat_dim))
 
@@ -95,21 +115,21 @@ class NodeExplainerModule(nn.Module):
 
     def forward(self, graph, n_feats):
         """
-        Calculate prediction results after masking input of the given model.
-        Parameters
-        ----------
-        graph: DGLGraph, Should be a sub_graph of the target node to be explained.
-        n_idx: Tensor, an integer, index of the node to be explained.
-        Returns
-        -------
-        new_logits: Tensor, in shape of N * Num_Classes
+        在对输入进行掩码处理后计算模型的预测结果。
+        
+        参数:
+            graph: DGL图，应为要解释的目标节点的子图
+            n_feats: 节点特征
+            
+        返回:
+            new_logits: 形状为N * Num_Classes的张量
         """
 
-        # Step 1: Mask node feature with the inner feature mask
+        # 步骤1: 使用内部特征掩码掩码节点特征
         new_n_feats = n_feats * self.node_feat_mask.sigmoid()
         edge_mask = self.edge_mask.sigmoid()
 
-        # Step 2: Add compute logits after mask node features and edges
+        # 步骤2: 计算掩码节点特征和边后的logits
         graph.ndata["_maskedfeat"] = new_n_feats
         new_logits = self.model(
             graph, test=True, e_weights=edge_mask, feat_override="_maskedfeat"
@@ -119,32 +139,25 @@ class NodeExplainerModule(nn.Module):
 
     def _loss(self, pred_logits, pred_label):
         """
-        Compute the losses of this explainer, which include 6 parts in author's codes:
-        1. The prediction loss between predict logits before and after node and edge masking;
-        2. Loss of edge mask itself, which tries to put the mask value to either 0 or 1;
-        3. Loss of node feature mask itself,  which tries to put the mask value to either 0 or 1;
-        4. L2 loss of edge mask weights, but in sum not in mean;
-        5. L2 loss of node feature mask weights, which is NOT used in the author's codes;
-        6. Laplacian loss of the adj matrix.
-        In the PyG implementation, there are 5 types of losses:
-        1. The prediction loss between logits before and after node and edge masking;
-        2. Sum loss of edge mask weights;
-        3. Loss of edge mask entropy, which tries to put the mask value to either 0 or 1;
-        4. Sum loss of node feature mask weights;
-        5. Loss of node feature mask entropy, which tries to put the mask value to either 0 or 1;
-        Parameters
-        ----------
-        pred_logits：Tensor, N-dim logits output of model
-        pred_label: Tensor, N-dim one-hot label of the label
-        Returns
-        -------
-        loss: Scalar, the overall loss of this explainer.
+        计算解释器的损失，包括以下几个部分：
+        1. 掩码前后预测logits之间的预测损失；
+        2. 边掩码自身的损失，试图将掩码值推向0或1；
+        3. 节点特征掩码自身的损失，试图将掩码值推向0或1；
+        4. 边掩码权重的L2损失（求和而不是平均）；
+        5. 节点特征掩码的熵损失，试图将掩码值推向0或1。
+        
+        参数:
+            pred_logits: 模型输出的N维logits张量
+            pred_label: N维的one-hot标签张量
+            
+        返回:
+            loss: 标量，解释器的总体损失
         """
-        # 1. prediction loss
+        # 1. 预测损失
         log_logit = -F.log_softmax(pred_logits, dim=-1)
         pred_loss = th.sum(log_logit * pred_label)
 
-        # 2. edge mask loss
+        # 2. 边掩码损失
         if self.activation == "sigmoid":
             edge_mask = th.sigmoid(self.edge_mask)
         elif self.activation == "relu":
@@ -153,13 +166,13 @@ class NodeExplainerModule(nn.Module):
             raise ValueError()
         edge_mask_loss = self.loss_coef["g_size"] * th.sum(edge_mask)
 
-        # 3. edge mask entropy loss
+        # 3. 边掩码熵损失
         edge_ent = -edge_mask * th.log(edge_mask + 1e-8) - (1 - edge_mask) * th.log(
             1 - edge_mask + 1e-8
         )
         edge_ent_loss = self.loss_coef["g_ent"] * th.mean(edge_ent)
 
-        # 4. node feature mask loss
+        # 4. 节点特征掩码损失
         if self.activation == "sigmoid":
             node_feat_mask = th.sigmoid(self.node_feat_mask)
         elif self.activation == "relu":
@@ -168,12 +181,13 @@ class NodeExplainerModule(nn.Module):
             raise ValueError()
         node_feat_mask_loss = self.loss_coef["feat_size"] * th.sum(node_feat_mask)
 
-        # 5. node feature mask entry loss
+        # 5. 节点特征掩码熵损失
         node_feat_ent = -node_feat_mask * th.log(node_feat_mask + 1e-8) - (
             1 - node_feat_mask
         ) * th.log(1 - node_feat_mask + 1e-8)
         node_feat_ent_loss = self.loss_coef["feat_ent"] * th.mean(node_feat_ent)
 
+        # 总损失
         total_loss = (
             pred_loss
             + edge_mask_loss
@@ -186,53 +200,96 @@ class NodeExplainerModule(nn.Module):
 
 
 class GNNExplainerLit(pl.LightningModule):
-    """Main Trainer."""
+    """GNNExplainer的PyTorch Lightning训练器类。"""
 
     def __init__(self, model, g):
-        """Initilisation."""
+        """初始化训练器。
+        
+        参数:
+            model: 要解释的图神经网络模型
+            g: 要解释的DGL图
+        """
         super().__init__()
+        # 冻结模型参数，只训练解释器
         for param in model.parameters():
             param.requires_grad = False
+        # 初始化节点解释器
         self.explainer = NodeExplainerModule(
             model=model, num_edges=g.number_of_edges(), node_feat_dim=768
         )
+        # 获取模型原始预测结果
         self.model_logits = model(g, test=True)[0]
         self.model_predict = F.one_hot(th.argmax(self.model_logits, dim=-1), 2)
         self.sub_feats = g.ndata["_CODEBERT"]
         self.g = g
 
     def forward(self, g):
-        """Forward pass."""
+        """前向传播。
+        
+        参数:
+            g: DGL图
+            
+        返回:
+            exp_logits: 经过解释器处理后的预测logits
+        """
         exp_logits = self.explainer(g, self.sub_feats)
         return exp_logits
 
     def training_step(self, batch, batch_idx):
-        """Training step."""
+        """训练步骤。
+        
+        参数:
+            batch: 批次数据
+            batch_idx: 批次索引
+            
+        返回:
+            loss: 训练损失
+        """
         exp_logits = self(batch)[0]
         loss = self.explainer._loss(exp_logits, self.model_predict)
         self.log("train_loss", loss, on_epoch=True, prog_bar=False)
         return loss
 
     def train_dataloader(self):
-        """Train on the single graph."""
+        """训练数据加载器。
+        
+        返回:
+            DGL图数据加载器，仅包含单个图
+        """
         return dgl.dataloading.GraphDataLoader([self.g])
 
     def configure_optimizers(self):
-        """Configure optimizer."""
+        """配置优化器。
+        
+        返回:
+            AdamW优化器
+        """
         return th.optim.AdamW(self.parameters(), lr=0.01, weight_decay=0)
 
 
 def get_node_importances(model, g):
-    """Assign node importance scores to DGL graph based on GNNExplainer."""
+    """基于GNNExplainer为DGL图分配节点重要性分数。
+    
+    参数:
+        model: 图神经网络模型
+        g: DGL图
+        
+    返回:
+        节点重要性分数张量
+    """
+    # 初始化GNNExplainer训练器
     gnne = GNNExplainerLit(model.cuda(), g.to("cuda"))
     trainer = pl.Trainer(
         gpus=1, max_epochs=20, default_root_dir="/tmp/", log_every_n_steps=1
     )
+    # 训练解释器
     trainer.fit(gnne)
+    # 获取边权重
     edge_weights = gnne.explainer.edge_mask.sigmoid().detach()
-    # Get Aggregate weight importances into nodes
+    # 将边权重聚合为节点重要性
     g.ndata["line_importance"] = th.ones(g.number_of_nodes(), device="cuda") * 2
     g.edata["edge_mask"] = edge_weights.cuda()
+    # 使用DGL的消息传递机制聚合边权重到节点
     g.update_all(
         dgl.function.u_mul_e("line_importance", "edge_mask", "m"),
         dgl.function.mean("m", "line_importance"),

@@ -3,13 +3,19 @@ import torch.nn.functional as F
 
 
 class SCELoss(torch.nn.Module):
-    """Symmetric Cross Entropy Loss.
+    """对称交叉熵损失函数(Symmetric Cross Entropy Loss)。
 
-    https://github.com/HanxunH/SCELoss-Reproduce/blob/master/loss.py
+    实现参考：https://github.com/HanxunH/SCELoss-Reproduce/blob/master/loss.py
     """
 
     def __init__(self, alpha=1, beta=1, num_classes=2):
-        """init."""
+        """初始化SCELoss类。
+
+        参数:
+            alpha (float): 常规交叉熵损失的权重系数
+            beta (float): 反向交叉熵损失的权重系数
+            num_classes (int): 类别数量，默认为2
+        """
         super(SCELoss, self).__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.alpha = alpha
@@ -18,7 +24,15 @@ class SCELoss(torch.nn.Module):
         self.cross_entropy = torch.nn.CrossEntropyLoss()
 
     def forward(self, pred, labels):
-        """Forward."""
+        """执行损失计算的前向传播。
+
+        参数:
+            pred (torch.Tensor): 模型的预测输出，形状为(batch_size, num_classes)
+            labels (torch.Tensor): 真实标签，形状为(batch_size,)
+
+        返回:
+            torch.Tensor: 计算得到的对称交叉熵损失值
+        """
         # CCE
         ce = self.cross_entropy(pred, labels)
 

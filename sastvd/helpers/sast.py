@@ -5,9 +5,33 @@ from xml.etree import cElementTree
 
 import sastvd as svd
 
+"""
+SAST工具集成模块
+
+该模块提供了与多种静态代码分析工具（SAST）的集成接口，用于检测代码中的潜在漏洞。
+
+支持的工具：
+1. FlawFinder - 检测C/C++代码中的安全漏洞
+2. RATS - Rough Auditing Tool for Security，安全审计工具
+3. CppCheck - C/C++静态代码分析工具
+
+主要功能：
+- 运行单个SAST工具
+- 同时运行多个SAST工具
+- 解析并统一处理各工具的输出格式
+- 提取有问题的代码行号
+"""
+
 
 def file_helper(content: str) -> str:
-    """Save content to file and return path it's saved to."""
+    """将内容保存到临时文件并返回文件路径。
+    
+    参数:
+        content (str): 要保存的内容
+    
+    返回:
+        str: 保存内容的临时文件路径
+    """
     uid = uuid.uuid4().hex
     savefile = str(svd.cache_dir() / uid) + ".c"
     with open(savefile, "w") as f:
@@ -16,7 +40,14 @@ def file_helper(content: str) -> str:
 
 
 def flawfinder(code: str):
-    """Run flawfinder on code string."""
+    """在代码字符串上运行flawfinder工具检测安全漏洞。
+    
+    参数:
+        code (str): 要分析的C/C++代码字符串
+    
+    返回:
+        list: 包含检测到的漏洞记录的列表，每个记录包含sast工具名称、行号和漏洞信息
+    """
     savefile = file_helper(code)
     opts = "--dataonly --quiet --singleline"
     cmd = f"flawfinder {opts} {savefile}"
@@ -33,6 +64,14 @@ def flawfinder(code: str):
 
 
 def rats(code: str):
+    """在代码字符串上运行RATS（Rough Auditing Tool for Security）工具检测安全漏洞。
+    
+    参数:
+        code (str): 要分析的代码字符串
+    
+    返回:
+        list: 包含检测到的漏洞记录的列表，每个记录包含sast工具名称、行号、严重性和漏洞信息
+    """
     savefile = file_helper(code)
     cmd = f"rats --resultsonly --xml {savefile}"
     ret = svd.subprocess_cmd(cmd)[0].decode()
@@ -53,6 +92,14 @@ def rats(code: str):
 
 
 def cppcheck(code: str):
+    """在代码字符串上运行CppCheck工具检测C/C++代码中的错误和漏洞。
+    
+    参数:
+        code (str): 要分析的C/C++代码字符串
+    
+    返回:
+        list: 包含检测到的错误和漏洞记录的列表，每个记录包含sast工具名称、行号、严重性、ID和详细信息
+    """
     savefile = file_helper(code)
     cmd = (
         f"cppcheck --enable=all --inconclusive --library=posix --force --xml {savefile}"
@@ -77,6 +124,15 @@ def cppcheck(code: str):
 
 
 def run_sast(code: str, verbose: int = 0):
+    """在代码字符串上运行所有SAST工具并返回合并的检测结果。
+    
+    参数:
+        code (str): 要分析的代码字符串
+        verbose (int): 输出详细程度，默认值为0
+    
+    返回:
+        list: 所有SAST工具检测到的漏洞记录的合并列表
+    """
     rflaw = flawfinder(code)
     rrats = rats(code)
     rcpp = cppcheck(code)
@@ -88,7 +144,15 @@ def run_sast(code: str, verbose: int = 0):
 
 
 def get_sast_lines(sast_pkl_path):
-    """Get sast lines from path to sast dump."""
+    """从SAST工具的输出文件中提取有问题的代码行号。
+    
+    参数:
+        sast_pkl_path: SAST工具输出的pickle文件路径
+    
+    返回:
+        dict: 包含不同SAST工具检测到的问题行号集合的字典
+              格式: {"cppcheck": set(), "rats": set(), "flawfinder": set()}
+    """
     ret = dict()
     ret["cppcheck"] = set()
     ret["rats"] = set()

@@ -3,6 +3,19 @@ from pathlib import Path
 import sastvd as svd
 import sastvd.ivdetect.evaluate as svde
 
+"""
+代码高亮可视化模块
+
+该模块使用highlight.js库生成带有行号和高亮显示的代码HTML，用于可视化漏洞检测结果。
+
+主要功能：
+- 生成带有语法高亮和行号的代码HTML
+- 根据预测分数高亮显示可能存在漏洞的行
+- 标记真实存在漏洞的行
+- 支持不同的代码风格主题
+- 将结果保存为HTML文件
+"""
+
 html = """<!DOCTYPE html>
 <link
   rel="stylesheet"
@@ -53,15 +66,26 @@ lines = svde.get_dep_add_lines_bigvul()
 
 
 def hljs(code, preds, vulns=[], style="idea", vid=None):
-    """Return highlight JS with predicted lines.
-
-    Example
-    style = "idea"
-    code = '''int main() {
-        int a = 1;
-        return a;
-    }'''
-    preds = {1: 0.5, 2: 0.3}
+    """生成带有预测结果高亮显示的代码HTML。
+    
+    参数:
+        code (str): 要高亮显示的代码字符串
+        preds (dict): 行号到预测分数的映射，格式: {行号: 预测分数}
+        vulns (list, optional): 真实漏洞行的列表，默认为空列表
+        style (str, optional): 代码高亮风格，默认为"idea"
+        vid (int, optional): 样本ID，用于获取真实漏洞信息，默认为None
+    
+    返回:
+        str: 包含语法高亮、行号和预测结果高亮的HTML字符串
+    
+    示例:
+        >>> style = "idea"
+        >>> code = '''int main() {
+        ...     int a = 1;
+        ...     return a;
+        ... }'''
+        >>> preds = {1: 0.5, 2: 0.3}
+        >>> html = hljs(code, preds)
     """
     hl_lines = []
     for k, v in preds.items():
@@ -84,10 +108,20 @@ def hljs(code, preds, vulns=[], style="idea", vid=None):
 
 
 def linevd_to_html(cfile, preds, vulns=[], style="idea"):
-    """Save a HTML representation of the predicted lines.
-
-    Given a path to a c file and prediction scores for each line in a list, return HTML.
-    cfile = svddc.BigVulDataset.itempath(sample.id)
+    """读取C文件内容，生成带有预测结果高亮的HTML并保存到文件。
+    
+    参数:
+        cfile (str): C文件的路径
+        preds (dict): 行号到预测分数的映射，格式: {行号: 预测分数}
+        vulns (list, optional): 真实漏洞行的列表，默认为空列表
+        style (str, optional): 代码高亮风格，默认为"idea"
+    
+    返回:
+        str: 生成的HTML字符串
+    
+    示例:
+        >>> cfile = svddc.BigVulDataset.itempath(sample.id)
+        >>> html = linevd_to_html(cfile, {1: 0.8, 3: 0.6})
     """
     with open(cfile, "r") as f:
         code = f.read()

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  linevd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: linevd:latest
+    container_name: linevd_container
+    runtime: nvidia
+    volumes:
+      # 挂载项目目录到容器
+      - .:/workspace
+      # 挂载存储目录（如果需要持久化数据）
+      - ./storage:/workspace/storage
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: /bin/bash

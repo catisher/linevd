@@ -18,7 +18,7 @@ from math import sqrt
 import pandas as pd
 import pytorch_lightning as pl
 import sastvd as svd
-import sastvd.helpers.dclass as svddc
+import linevd.sastvd.helpers.BigVulDataset as svddc
 import sastvd.linevd as lvd
 import sastvd.linevd.c_builtins as cbuiltin
 from ray.tune import Analysis

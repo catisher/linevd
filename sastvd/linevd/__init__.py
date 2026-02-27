@@ -15,7 +15,7 @@ import sastvd.helpers.dclass as svddc
 import sastvd.helpers.doc2vec as svdd2v
 import sastvd.helpers.glove as svdg
 import sastvd.helpers.joern as svdj
-import sastvd.helpers.losses as svdloss
+import linevd.sastvd.helpers.SCELoss as svdloss
 import sastvd.helpers.ml as ml
 import sastvd.helpers.rank_eval as svdr
 import sastvd.helpers.sast as sast

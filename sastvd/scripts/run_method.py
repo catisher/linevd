@@ -66,6 +66,7 @@ def train_ml(
     metrics = ["train_loss", "val_loss", "val_auroc"]  # 监控指标
     raytune_callback = TuneReportCallback(metrics, on="validation_end")  # Ray Tune报告回调
     rtckpt_callback = TuneReportCheckpointCallback(metrics, on="validation_end")  # Ray Tune检查点回调
+    
     # 创建训练器
     trainer = pl.Trainer(
         gpus=1,  # 使用的GPU数量
@@ -75,12 +76,14 @@ def train_ml(
         callbacks=[checkpoint_callback, raytune_callback, rtckpt_callback],  # 回调函数列表
         max_epochs=max_epochs,  # 最大训练轮数
     )
+
     # 训练模型
     trainer.fit(model, data)
 
     # 保存测试结果
     main_savedir = svd.get_dir(svd.outputs_dir() / "rq_results_methodonly")  # 结果保存目录
     trainer.test(model, data, ckpt_path="best")  # 在测试集上运行最佳模型
+    
     # 收集测试结果
     res = [
         "methodonly",  # 模型类型

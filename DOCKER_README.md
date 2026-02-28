@@ -2,6 +2,132 @@
 
 本项目提供了完整的Docker配置，可以替代Singularity容器来运行LineVD漏洞检测系统。
 
+
+
+
+# 本地配置
+
+## 待处理
+chmod u+x /cli.sh \
+
+
+sudo apt update -y
+
+## 2. 安装LineVD所需系统依赖
+sudo apt install -y \
+    wget \
+    build-essential \
+    git \
+    graphviz \
+    zip \
+    unzip \
+    curl \
+    vim \
+    libexpat1-dev \
+    cmake
+
+## 3. 清理APT缓存（减小磁盘占用，Docker/本地环境通用）
+sudo apt clean
+sudo rm -rf /var/lib/apt/lists/*
+
+
+
+
+## 4. miniconda
+cd / 
+wget --timeout=60 --tries=3 --no-check-certificate https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh 
+bash miniconda.sh -b -u
+rm -f miniconda.sh 
+
+## 貌似可有可无
+sudo /root/miniconda3/bin/conda clean -afy 
+
+# 7. 安装PyTorch（cu118，国内源加速）
+pip install torch torchvision torchaudio --index-url https://pypi.tuna.tsinghua.edu.cn/simple --extra-index-url https://download.pytorch.org/whl/cu118
+
+   
+# 阿里云源（推荐，稳定性更高）
+pip install torch torchvision torchaudio \
+  --index-url https://mirrors.aliyun.com/pypi/simple/ \
+  --extra-index-url https://download.pytorch.org/whl/cu118 \
+  --timeout=300 --retries=10
+
+# 中科大源（备选）  成功
+pip install torch torchvision torchaudio \
+  --index-url https://pypi.mirrors.ustc.edu.cn/simple/ \
+  --extra-index-url https://download.pytorch.org/whl/cu118 \
+  --timeout=300 --retries=10
+
+
+# 8. 安装GloVe（无Git，压缩包下载）
+    wget --timeout=60 --tries=3 --no-check-certificate https://github.com/stanfordnlp/GloVe/archive/refs/heads/master.zip -O GloVe-master.zip 
+    unzip -q GloVe-master.zip && mv GloVe-master GloVe && rm -f GloVe-master.zip
+    cd GloVe && make -j$(nproc) && cd / && rm -rf GloVe/.git
+   
+
+# 9. 安装cppcheck 2.10（兼容GCC 11+）
+# 直接拿来的2.5
+
+curl -L https://github.com/danmar/cppcheck/archive/refs/tags/2.5.tar.gz > cppcheck2.5.tar.gz    
+    mkdir cppcheck
+    mv cppcheck2.10.tar.gz cppcheck
+    cd cppcheck
+    tar -xzvf cppcheck2.10.tar.gz
+    cd cppcheck-2.10
+    mkdir build
+    cd build
+    cmake ..
+    cmake --build .
+# 这句没有权限安装 要加sudo
+    make install
+
+# 11. 安装RATS（SSL绕过，清理压缩包）
+curl -L https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/rough-auditing-tool-for-security/rats-2.4.tgz > rats-2.4.tgz
+tar -xzvf rats-2.4.tgz
+cd rats-2.4
+./configure 
+make 
+
+# 同上，权限问题
+    make install
+
+
+# 12. 安装flawfinder（国内源）
+pip install flawfinder -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+
+
+# 14. 安装pygraphviz和nltk
+# 要权限，还要接受以下这几个，真是有够sb的
+# 接受main频道的ToS
+sudo /root/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+# 接受r频道的ToS
+sudo /root/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+# 要给conda换源
+# 给root的conda添加清华源（对应你要执行的3条配置）
+sudo /root/miniconda3/bin/conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
+sudo /root/miniconda3/bin/conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
+sudo /root/miniconda3/bin/conda config --set show_channel_urls yes
+
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+## 太慢了，有待测试
+sudo /root/miniconda3/bin/conda install -y pygraphviz
+
+## 这个成功
+pip install nltk -i https://pypi.tuna.tsinghua.edu.cn/simple 
+python3 -c 'import nltk; nltk.download("punkt")'
+  
+
+# Joern 
+# 太慢了
+sudo apt install -y openjdk-8-jdk git curl gnupg bash unzip sudo wget 
+wget https://github.com/ShiftLeftSecurity/joern/releases/latest/download/joern-install.sh
+chmod +x ./joern-install.sh
+printf 'Y\n/bin/joern\ny\n/usr/local/bin\n\n' | sudo ./joern-install.sh --interactive
+
+
+
 ## 前置要求
 
 1. **Docker安装**

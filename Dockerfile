@@ -8,7 +8,7 @@ ENV SINGULARITY=true
 ENV PATH=$PATH:/GloVe/build
 ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 ENV PATH=$PATH:$JAVA_HOME/bin
-# 移除无效CUDA 10.2配置（改用自动适配）
+#待定
 ENV PATH=$PATH:/usr/local/cuda/bin
 
 # 复制必要文件（无则创建空文件）
@@ -16,6 +16,7 @@ COPY cli.sh /cli.sh
 COPY requirements.txt /requirements.txt
 
 # 2. 配置国内源，加速下载（解决超时问题）
+# 有待测试
 RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
     sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
     # pip国内源
@@ -24,21 +25,30 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && 
     # conda国内源
     echo "channels:\n  - defaults\ndefault_channels:\n  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main\n  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r\n  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/msys2\ncustom_channels:\n  conda-forge: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud\n  msys2: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud\n  bioconda: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud\n  menpo: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud\n  pytorch: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud" > /root/.condarc
 
-# 3. 版本信息验证（移除无效nvcc，保留有用信息）
+# 3. 版本信息验证
 RUN echo "=== 完整版本信息验证 ===" && \
     cat /etc/os-release | grep -E "NAME|VERSION_ID" | tee -a /version_info.txt && \
     ldd --version | head -1 | tee -a /version_info.txt && \
     echo "=== 完整版本信息已写入/version_info.txt ==="
 
-# 4. 安装基础工具（合并依赖，无重复+修复软链接）
-RUN apt update -y && \
-    # 屏蔽apt CLI警告
-    APT_LISTCHANGES_FRONTEND=none apt install -y --no-install-recommends \
-    wget build-essential git graphviz zip unzip curl vim libexpat1-dev cmake \
-    openjdk-8-jdk-headless gnupg bash sudo libssl-dev python3-dev python3-pip \
-    ca-certificates && \
-    apt clean && rm -rf /var/lib/apt/lists/* 
-
+# 4. 安装基础工具
+# 执行权限设置 + 系统更新 + 安装依赖
+RUN chmod u+x /cli.sh \
+    && apt update -y \
+    && apt install -y \
+        wget \
+        build-essential \
+        git \
+        graphviz \
+        zip \
+        unzip \
+        curl \
+        vim \
+        libexpat1-dev \
+        cmake \
+    # 清理apt缓存，减小镜像体积
+    && apt clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # 5. 安装Miniconda（完整路径，无警告）
 RUN cd / && \
@@ -49,6 +59,10 @@ RUN cd / && \
 
 # 6. 全局PATH包含conda
 ENV PATH=/root/miniconda3/bin:$PATH
+
+# 7. 安装PyTorch（cu118，国内源加速）
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
 
 # 8. 安装GloVe（无Git，压缩包下载）
 RUN cd / && \
@@ -79,7 +93,7 @@ RUN /root/miniconda3/bin/conda install -y pygraphviz && \
     pip install nltk -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     python -c 'import nltk; nltk.download("punkt")'
   
-# 13. 安装Python依赖（兼容cu118）
+# 13. 安装Python依赖（兼容cu118） 前置miniconda
 RUN cat /requirements.txt | xargs -n 1 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install dgl -i https://pypi.tuna.tsinghua.edu.cn/simple
 
@@ -90,9 +104,6 @@ RUN cd / && \
     chmod +x ./joern-install.sh && \
     printf 'Y\n/bin/joern\ny\n/usr/local/bin\n\n' | sudo ./joern-install.sh --interactive && \
     rm -f ./joern-install.sh
-
-# 7. 安装PyTorch（cu118，国内源加速）
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 
 

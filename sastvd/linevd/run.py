@@ -10,6 +10,8 @@
 该脚本是LineVD模型训练的主要入口点，支持与RayTune集成进行超参数优化。
 """
 
+
+# sastvd/script/run_method.py的修改版本，适用于LineVD模型训练
 import pytorch_lightning as pl
 import sastvd.linevd as lvd
 from ray.tune.integration.pytorch_lightning import (

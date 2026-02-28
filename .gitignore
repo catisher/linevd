@@ -13,3 +13,4 @@ hpc/logs/*
 **/*.gzip
 **/workspace
 linevd-venv
+miniconda.sh

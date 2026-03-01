@@ -12,5 +12,5 @@ hpc/logs/*
 **/*.pyc
 **/*.gzip
 **/workspace
-linevd-venv
+linevd-venv/
 miniconda.sh

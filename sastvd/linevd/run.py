@@ -11,7 +11,7 @@
 """
 
 
-# sastvd/script/run_method.py的修改版本，适用于LineVD模型训练
+# sastvd/script/train_best.py 所引用
 import pytorch_lightning as pl
 import sastvd.linevd as lvd
 from ray.tune.integration.pytorch_lightning import (

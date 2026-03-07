@@ -132,8 +132,11 @@ def run_joern(filepath: str, verbose: int):
     command = f"joern --script {script_file} --params='{params}'"
 
     # 构建完整的命令路径（joern-cli目录下的joern可执行文件）
-    command = str(svd.external_dir() / "joern-cli" / command)
+    # 神经，作者藏的坑还挺多
 
+    #command = str(svd.external_dir() / "joern-cli" / command)
+    command = str(Path.home() / "joern" / "joern-cli" / command)
+   
     # 如果verbose大于2，打印执行的命令（用于调试）
     if verbose > 2:
         svd.debug(command)

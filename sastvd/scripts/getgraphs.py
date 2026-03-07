@@ -16,7 +16,9 @@ import sastvd.helpers.sast as sast
 # 设置配置
 NUM_JOBS = 100  # 并行任务数量
 # 如果在Jupyter中运行，JOB_ARRAY_NUMBER为0，否则从命令行参数获取
-JOB_ARRAY_NUMBER = 0 if "ipykernel" in sys.argv[0] else int(sys.argv[1]) - 1
+
+# JOB_ARRAY_NUMBER = 0 if "ipykernel" in sys.argv[0] else int(sys.argv[1]) - 1
+JOB_ARRAY_NUMBER = 0
 
 # 读取数据
 df = svdd.bigvul()  # 加载BigVul数据集

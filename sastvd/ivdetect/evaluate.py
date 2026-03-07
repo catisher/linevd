@@ -70,17 +70,27 @@ def get_dep_add_lines_bigvul(cache=True):
     返回:
         dict: 包含每个漏洞ID对应的removed行和depadd行的字典
     """
+    # 定义缓存文件路径
     saved = svd.get_dir(svd.processed_dir() / "bigvul/eval") / "statement_labels.pkl"
+    # 如果缓存文件存在且cache为True，直接加载缓存
     if os.path.exists(saved) and cache:
         with open(saved, "rb") as f:
             return pkl.load(f)
+    # 加载BigVul数据集
     df = svdd.bigvul()
+    # 筛选出漏洞样本（vul==1）
     df = df[df.vul == 1]
+    # 设置进度条描述
     desc = "Getting dependent-added lines: "
+    # 并行处理数据，提取依赖添加行
+    # 处理列：id（样本ID）、removed（删除的代码行）、added（添加的代码行）
     lines_dict = svd.dfmp(df, helper, ["id", "removed", "added"], ordr=False, desc=desc)
+    # 将结果列表转换为字典
     lines_dict = dict(lines_dict)
+    # 保存结果到缓存文件
     with open(saved, "wb") as f:
         pkl.dump(lines_dict, f)
+    # 返回结果字典
     return lines_dict
 
 

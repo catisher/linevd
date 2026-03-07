@@ -1,3 +1,8 @@
+## 验证joern
+## 打这个命令就行
+## v1.1.1530
+joern
+
 ## 验证GloVe 
 ls -la ~/GloVe/build/ 2>/dev/null || echo "GloVe build 目录不存在"
 ### 检查各个组件
@@ -66,3 +71,20 @@ else:
     print('DGL CUDA 支持: False (PyTorch CUDA 不可用)')
 "
 
+# 测试NLTK                              
+python3 -c "
+import nltk
+print(f'NLTK 版本: {nltk.__version__}')
+"
+
+# 检查 NLTK 数据目录
+python3 -c "
+import nltk
+print('NLTK 数据目录:', nltk.data.path)
+"
+
+## torch-scatter
+python -c "import torch_scatter; print('torch_scatter 已安装，版本:', torch_scatter.__version__)"
+
+## 查看 tsne_torch 的安装信息
+pip show tsne_torch

@@ -164,13 +164,19 @@ def _c2dhelper(item):
     4. 调用code2diff函数计算代码差异
     5. 将结果保存到pickle文件中
     """
+    # 构建保存目录路径：cache_dir/dataset/gitdiff/
     savedir = svd.get_dir(svd.cache_dir() / item["dataset"] / "gitdiff")
+    # 构建保存文件路径：id.git.pkl
     savepath = savedir / f"{item['id']}.git.pkl"
+    # 如果文件已存在，直接返回（避免重复计算）
     if os.path.exists(savepath):
         return
+    # 如果修改前后的代码相同，直接返回（无差异）
     if item["func_before"] == item["func_after"]:
         return
+    # 调用code2diff函数计算代码差异
     ret = code2diff(item["func_before"], item["func_after"])
+    # 将结果保存到pickle文件中
     with open(savepath, "wb") as f:
         pkl.dump(ret, f)
 
@@ -247,32 +253,54 @@ def allfunc(row):
        - 对于添加行(+)，在before版本中注释掉，在after版本中保留
     4. 将处理后的行组合成完整的函数代码
     """
+    # 调用get_codediff函数获取差异数据
+    # 调pkl文件
     readfile = get_codediff(row["dataset"], row["id"])
 
+    # 初始化返回字典，设置默认值
     ret = dict()
+    # 设置diff字段：如果没有差异，返回空字符串
     ret["diff"] = "" if len(readfile) == 0 else readfile["diff"]
+    # 设置added字段：如果没有差异，返回空列表
     ret["added"] = [] if len(readfile) == 0 else readfile["added"]
+    # 设置removed字段：如果没有差异，返回空列表
     ret["removed"] = [] if len(readfile) == 0 else readfile["removed"]
+    # 设置before字段：默认为修改前的函数代码
     ret["before"] = row["func_before"]
+    # 设置after字段：默认为修改前的函数代码
     ret["after"] = row["func_before"]
 
+    # 如果有差异数据，处理差异行
     if len(readfile) > 0:
+        # 初始化before和after版本的行列表
         lines_before = []
         lines_after = []
+        # 遍历差异的每一行
         for li in ret["diff"].splitlines():
+            # 跳过空行
             if len(li) == 0:
                 continue
+            # 复制当前行到before和after版本
             li_before = li
             li_after = li
+            # 处理删除行（以-开头）
             if li[0] == "-":
+                # before版本：保留原始行（去掉-号）
                 li_before = li[1:]
+                # after版本：注释掉该行（去掉-号并添加//）
                 li_after = "// " + li[1:]
+            # 处理添加行（以+开头）
             if li[0] == "+":
+                # before版本：注释掉该行（去掉+号并添加//）
                 li_before = "// " + li[1:]
+                # after版本：保留原始行（去掉+号）
                 li_after = li[1:]
+            # 将处理后的行添加到对应列表
             lines_before.append(li_before)
             lines_after.append(li_after)
+        # 将行列表组合成完整的函数代码
         ret["before"] = "\n".join(lines_before)
         ret["after"] = "\n".join(lines_after)
 
+    # 返回处理结果
     return ret

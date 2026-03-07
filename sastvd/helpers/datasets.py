@@ -273,7 +273,7 @@ def bigvul(minimal=True, sample=False, return_raw=False, splits="default"):
             md = pd.read_csv(svd.cache_dir() / "bigvul/bigvul_metadata.csv")
             md.groupby("project").count().sort_values("id")
 
-            # 加载默认的随机划分方案
+            # 加载默认的随机划分路径
             default_splits = svd.external_dir() / "bigvul_rand_splits.csv"
             if os.path.exists(default_splits):
                 splits = pd.read_csv(default_splits)
@@ -292,7 +292,7 @@ def bigvul(minimal=True, sample=False, return_raw=False, splits="default"):
                 trid, vaid = train_test_split(nonproject, test_size=0.1, random_state=1)
                 # 获取目标项目的样本ID作为测试集
                 teid = md[md.project == project].id.tolist()
-                # 创建划分字典
+                # 创建划分字典，给id打上标签
                 teid = {k: "test" for k in teid}
                 trid = {k: "train" for k in trid}
                 vaid = {k: "val" for k in vaid}

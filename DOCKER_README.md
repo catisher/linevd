@@ -62,11 +62,10 @@ pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https
 
 pip install dgl-cu117 -f https://data.dgl.ai/wheels/repo.html
 
-
-
-
-
-
+## 官方
+## pip会自动解决包冲突 conda不会
+pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
+conda install -c dglteam/label/th21_cu118 dgl
 
 
 # 14. 安装pygraphviz和nltk
@@ -82,7 +81,9 @@ pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ## 太慢了，有待测试
 sudo /root/miniconda3/bin/conda install -y pygraphviz
 
+## nltk
 ## 这个成功
+## 乐，nltk项目里根本没用到
 pip install nltk -i https://pypi.tuna.tsinghua.edu.cn/simple 
 python3 -c 'import nltk; nltk.download("punkt")'
   
@@ -93,5 +94,16 @@ sudo apt install -y openjdk-8-jdk git curl gnupg bash unzip sudo wget
 wget https://github.com/ShiftLeftSecurity/joern/releases/latest/download/joern-install.sh
 chmod +x ./joern-install.sh
 printf 'Y\n/bin/joern\ny\n/usr/local/bin\n\n' | sudo ./joern-install.sh --interactive
+## 直接从官网下载解压
+unzip joern-cli.zip -d joern
+echo 'export PATH="$HOME/joern:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 
+
+
+### torch-scatter
+## 要指定版本，不然会自动更新pytorch
+pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+cu117.html
+
+##
 

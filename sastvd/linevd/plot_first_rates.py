@@ -43,6 +43,9 @@ if __name__ == "__main__":
     best = mdf.sort_values("stmt_f1", ascending=0).iloc[0]
     best_path = f"{best['logdir']}/{best['checkpoint']}/checkpoint"
 
+    # Load modules
+    ## 被ai注释掉的
+    model = lvd.LitGNN()
     # 加载模型和数据模块
     datamodule_args = {
         "batch_size": 1024,

@@ -197,9 +197,9 @@ def get_embeddings(text: str, emb_dict: dict, emb_size: int = 100) -> np.array:
     Returns:
         np.array: 嵌入向量数组，形状为(序列长度, 嵌入维度)
     """
-    return np.array([
+    return [
         emb_dict[i] if i in emb_dict else np.full(emb_size, 0.001) for i in text.split()
-    ])
+    ]
 
 
 def get_embeddings_list(li: list, emb_dict: dict, emb_size: int = 100) -> list:

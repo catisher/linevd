@@ -194,7 +194,7 @@ class BigVulDataset:
         - 计算每个分组的样本数量
         - 打印统计结果
         """
-        print(self.df.groupby(["label", "vul"]).count()["id"])
+        print(self.df.groupby(["label", "vul"]).count()[["id"]])
 
     def __getitem__(self, idx):
         """通过索引获取数据集样本

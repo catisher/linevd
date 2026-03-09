@@ -53,7 +53,7 @@ analysis = tune.run(
     config=config,  # 最佳超参数配置
     num_samples=1000,  # 试验次数
     name="tune_linevd",  # 实验名称
-    local_dir=sp,  # 本地保存目录
+    storage_path=sp,  # 本地保存目录
     keep_checkpoints_num=1,  # 保留的检查点数量（仅保留最佳模型）
     checkpoint_score_attr="min-val_loss",  # 检查点评分属性
 )

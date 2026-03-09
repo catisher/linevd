@@ -290,6 +290,8 @@ def get_node_edges(filepath: str, verbose=0):
             # 构建节点标签
             node_label = f"TYPE_{lineNum}: {typemap[int(e.outnode.split('_')[0])]}"
             # 添加新节点到 nodes DataFrame
+            ## 这里显示append 是 pandas已弃用的方法
+            ## to be modified
             nodes = nodes.append(
                 {"id": e.outnode, "node_label": node_label, "lineNumber": lineNum},
                 ignore_index=True,

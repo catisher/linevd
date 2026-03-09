@@ -88,3 +88,11 @@ python -c "import torch_scatter; print('torch_scatter 已安装，版本:', torc
 
 ## 查看 tsne_torch 的安装信息
 pip show tsne_torch
+
+
+
+
+## 代码执行
+python sastvd/scripts/getgraphs.py 
+python sastvd/scripts/prepare.py 
+python sastvd/scripts/train_best.py

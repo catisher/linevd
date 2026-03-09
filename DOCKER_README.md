@@ -65,7 +65,14 @@ pip install dgl-cu117 -f https://data.dgl.ai/wheels/repo.html
 ## 官方
 ## pip会自动解决包冲突 conda不会
 pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
-conda install -c dglteam/label/th21_cu118 dgl
+# If you have installed dgl-cuXX package, please uninstall it first.
+pip install  dgl -f https://data.dgl.ai/wheels/torch-2.1/cu118/repo.html
+
+
+# CUDA 11.8
+pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu118
+
+pip install  dgl -f https://data.dgl.ai/wheels/torch-2.4/cu118/repo.html
 
 
 # 14. 安装pygraphviz和nltk
@@ -101,9 +108,22 @@ source ~/.bashrc
 
 
 
+
+
 ### torch-scatter
 ## 要指定版本，不然会自动更新pytorch
 pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+cu117.html
 
 ##
 
+
+
+### RATS需要预装库expat 库
+conda install -c conda-forge expat
+
+# 3. 重新编译 RATS
+cd ~/rats-2.4
+make clean 2>/dev/null
+./configure --prefix=$HOME/.local --with-expat-lib=$CONDA_PREFIX/lib --with-expat-include=$CONDA_PREFIX/include
+make
+make install

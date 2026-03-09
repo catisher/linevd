@@ -27,7 +27,9 @@ def train_d2v(
     window=2,
     min_count=5,
     workers=4,
-    epochs=100,
+    # 改小一点
+    #epochs=100,
+    epochs=5,
     dm_concat=1,
     dm=1,
 ):

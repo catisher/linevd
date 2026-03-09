@@ -93,6 +93,9 @@ pip show tsne_torch
 
 
 ## 代码执行
+
 python sastvd/scripts/getgraphs.py 
 python sastvd/scripts/prepare.py 
+
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 python sastvd/scripts/train_best.py

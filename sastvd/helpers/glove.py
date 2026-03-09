@@ -38,7 +38,9 @@ def glove(
     MEMORY=4.0,
     VOCAB_MIN_COUNT=5,
     VECTOR_SIZE=200,
-    MAX_ITER=15,
+    # 改小一点
+    #MAX_ITER=15,
+    MAX_ITER=5,
     WINDOW_SIZE=15,
     BINARY=2,
     NUM_THREADS=8,

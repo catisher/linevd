@@ -431,9 +431,9 @@ class LitGNN(pl.LightningModule):
             self.loss_f = th.nn.CrossEntropyLoss()
 
         # Metrics
-        self.accuracy = torchmetrics.Accuracy()
-        self.auroc = torchmetrics.AUROC(compute_on_step=False)
-        self.mcc = torchmetrics.MatthewsCorrcoef(2)
+        self.accuracy = torchmetrics.Accuracy(task="binary")
+        self.auroc = torchmetrics.AUROC(task="binary",compute_on_step=False)
+        self.mcc = torchmetrics.MatthewsCorrcoef(task="binary", num_classes=2)
 
         # GraphConv Type
         hfeat = self.hparams.hfeat

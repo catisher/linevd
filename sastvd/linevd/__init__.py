@@ -433,7 +433,7 @@ class LitGNN(pl.LightningModule):
         # Metrics
         self.accuracy = torchmetrics.Accuracy(task="binary")
         self.auroc = torchmetrics.AUROC(task="binary")
-        self.mcc = torchmetrics.MatthewsCorrcoef(task="binary", num_classes=2)
+        self.mcc = torchmetrics.MatthewsCorrelation(task="binary")
 
         # GraphConv Type
         hfeat = self.hparams.hfeat

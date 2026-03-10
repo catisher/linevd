@@ -75,6 +75,14 @@ class BigVulDataset:
             nonvul = self.df[self.df.vul == 0].sample(len(vul), random_state=0)
             # 合并有漏洞和无漏洞样本，实现1:1平衡
             self.df = pd.concat([vul, nonvul])
+            if len(vul) == 0 and len(nonvul_all) == 0:
+                raise ValueError("数据集无任何有效样本！vul列全为无效值，请检查标签格式")
+            elif len(vul) == 0:
+                raise ValueError("数据集无漏洞样本（vul=1）！无法完成平衡采样")
+            elif len(nonvul) == 0:
+                raise ValueError("数据集无非漏洞样本（vul=0）！无法完成平衡采样")   
+            
+        
 
         # 7. 调整测试集的正负样本比例（无漏洞样本数量不超过有漏洞样本的20倍）
         if partition == "test":

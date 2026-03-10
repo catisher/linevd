@@ -93,7 +93,7 @@ sudo /root/miniconda3/bin/conda install -y pygraphviz
 ## 乐，nltk项目里根本没用到
 pip install nltk -i https://pypi.tuna.tsinghua.edu.cn/simple 
 python3 -c 'import nltk; nltk.download("punkt")'
-  
+
 
 # Joern 
 # 太慢了

@@ -20,8 +20,13 @@ def bigvul():
     ivde.get_dep_add_lines_bigvul()  # 计算依赖添加行
     
     ## 暂不使用
-    #svdd.generate_glove("bigvul")  # 生成GloVe词嵌入
-    #svdd.generate_d2v("bigvul")  # 生成Doc2Vec词嵌入
+    svdd.generate_glove("bigvul")  # 生成GloVe词嵌入
+    print("GloVe词嵌入生成完成")
+    print("=============================================================")
+    svdd.generate_d2v("bigvul")  # 生成Doc2Vec词嵌入
+    print("Doc2Vec词嵌入生成完成")
+    print("=============================================================")
+    print("BigVul数据集准备完成")
 
 
 if __name__ == "__main__":

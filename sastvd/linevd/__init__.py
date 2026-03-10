@@ -430,12 +430,12 @@ class LitGNN(pl.LightningModule):
             )
             self.loss_f = th.nn.CrossEntropyLoss()
 
-        # Metrics
+        # 评估指标配置
         self.accuracy = torchmetrics.Accuracy(task="binary")
         self.auroc = torchmetrics.AUROC(task="binary")
         self.mcc = torchmetrics.MatthewsCorrCoef(task="binary", num_classes=2)
 
-        # GraphConv Type
+        # 图卷积层配置
         hfeat = self.hparams.hfeat
         gatdrop = self.hparams.gatdropout
         numheads = self.hparams.num_heads

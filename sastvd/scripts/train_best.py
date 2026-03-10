@@ -41,7 +41,12 @@ sp = svd.get_dir(svd.processed_dir() / f"raytune_best_{samplesz}" / run_id)
 # 传递最大训练轮数、样本大小和保存路径参数
 
 trainable = tune.with_parameters(
-    lvdrun.train_linevd, max_epochs=130, samplesz=samplesz, savepath=sp
+    lvdrun.train_linevd, 
+    ## test
+    ## max_epochs=130,
+    max_epochs= 5, 
+    samplesz=samplesz, 
+    savepath=sp
 )
 
 # 运行最佳配置的超参数调优

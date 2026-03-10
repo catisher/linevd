@@ -21,7 +21,14 @@ from ray.tune.integration.pytorch_lightning import (
 
 
 def train_linevd(
-    config, savepath, samplesz=-1, max_epochs=130, num_gpus=1, checkpoint_dir=None
+    config,
+    savepath, 
+    samplesz=-1, 
+    ## test
+    #max_epochs=130
+    max_epochs=5, 
+    num_gpus=1, 
+    checkpoint_dir=None
 ):
     """封装PyTorch Lightning训练流程，用于RayTune超参数调优。
     

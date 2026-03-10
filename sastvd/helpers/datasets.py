@@ -363,6 +363,8 @@ def bigvul(minimal=True, sample=False, return_raw=False, splits="default"):
     dfv = dfv[dfv.apply(lambda x: len(x.before.splitlines()) > 5, axis=1)]
     # 7. 根据过滤后的漏洞样本ID，保留所有非漏洞样本和过滤后的漏洞样本
     keep_vuln = set(dfv.id.tolist())
+    if len(df[df.vul == 0]) == 0 :
+        raise ValueError("数据集没有漏洞样本")
     df = df[(df.vul == 0) | (df.id.isin(keep_vuln))].copy()
 
     # 划分数据集为训练集、验证集和测试集

@@ -68,4 +68,6 @@ def preprocess(row):
 
 if __name__ == "__main__":
     # 并行处理当前任务的数据
-    svd.dfmp(splits[JOB_ARRAY_NUMBER], preprocess, ordr=False, workers=8)
+    for i in range(NUM_JOBS):
+        svd.dfmp(splits[i], preprocess, ordr=False, workers=8)
+   # svd.dfmp(splits[JOB_ARRAY_NUMBER], preprocess, ordr=False, workers=8)

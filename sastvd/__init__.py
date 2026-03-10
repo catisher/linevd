@@ -208,9 +208,10 @@ def watch_subprocess_cmd(command: str, force_shell: bool = False):
         command: 要执行的命令
         force_shell: 是否强制使用本地 shell 执行
     """
-    singularity = os.getenv("SINGULARITY")
-    if singularity != "true" and not force_shell:
-        command = f"singularity exec {project_dir() / 'main.sif'} " + command
+    ## 埋坑
+    #singularity = os.getenv("SINGULARITY")
+    #if singularity != "true" and not force_shell:
+    #    command = f"singularity exec {project_dir() / 'main.sif'} " + command
     process = subprocess.Popen(
         command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )

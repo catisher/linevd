@@ -101,3 +101,5 @@ python sastvd/scripts/prepare.py
 
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 python sastvd/scripts/train_best.py
+
+python tests/try.py

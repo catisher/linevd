@@ -66,11 +66,11 @@ class BigVulDataset:
         # 4. 过滤指定分区的样本
         self.df = self.df[self.df.label == partition]
         if len(self.df[self.df.vul == 0]) == 0 :
-            raise ValueError("数据集没有漏洞样本V6")
+            raise ValueError("数据集没有非漏洞样本V6")
         # 5. 只保留已完成图构建的样本
         self.df = self.df[self.df.id.isin(self.finished)]
         if len(self.df[self.df.vul == 0]) == 0 :
-            raise ValueError("数据集没有漏洞样本V7")
+            raise ValueError("数据集没有非漏洞样本V7")
         # 6. 平衡训练集和验证集（解决类别不平衡问题）
         if partition == "train" or partition == "val":
             vul = self.df[self.df.vul == 1]  # 获取所有有漏洞的样本

@@ -364,12 +364,14 @@ def bigvul(minimal=True, sample=False, return_raw=False, splits="default"):
     # 7. 根据过滤后的漏洞样本ID，保留所有非漏洞样本和过滤后的漏洞样本
     keep_vuln = set(dfv.id.tolist())
     if len(df[df.vul == 0]) == 0 :
-        raise ValueError("数据集没有漏洞样本")
+        raise ValueError("数据集没有漏洞样本V1")
     df = df[(df.vul == 0) | (df.id.isin(keep_vuln))].copy()
-
+    if len(df[df.vul == 0]) == 0 :
+        raise ValueError("数据集没有漏洞样本V2")
     # 划分数据集为训练集、验证集和测试集
     df = train_val_test_split_df(df, "id", "vul")
-
+    if len(df[df.vul == 0]) == 0 :
+        raise ValueError("数据集没有漏洞样本V3")
     # 定义需要保存的列
     keepcols = [
         "dataset",
@@ -395,6 +397,8 @@ def bigvul(minimal=True, sample=False, return_raw=False, splits="default"):
     metadata_cols = df.columns[:17].tolist() + ["project"]
     df[metadata_cols].to_csv(svd.cache_dir() / "bigvul/bigvul_metadata.csv", index=0)
     # 返回处理后的数据集
+    if len(df[df.vul == 0]) == 0 :
+        raise ValueError("数据集没有漏洞样本V4")
     return df
 
 

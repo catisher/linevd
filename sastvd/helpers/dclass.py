@@ -58,16 +58,19 @@ class BigVulDataset:
         
         # 2. 加载BigVul数据集
         self.df = svdds.bigvul(splits=splits)
-        
+        if len(df[df.vul == 0]) == 0 :
+            raise ValueError("数据集没有漏洞样本V5")
         # 3. 保存分区信息
         self.partition = partition
         
         # 4. 过滤指定分区的样本
         self.df = self.df[self.df.label == partition]
-        
+        if len(df[df.vul == 0]) == 0 :
+            raise ValueError("数据集没有漏洞样本V6")
         # 5. 只保留已完成图构建的样本
         self.df = self.df[self.df.id.isin(self.finished)]
-
+        if len(df[df.vul == 0]) == 0 :
+            raise ValueError("数据集没有漏洞样本V7")
         # 6. 平衡训练集和验证集（解决类别不平衡问题）
         if partition == "train" or partition == "val":
             vul = self.df[self.df.vul == 1]  # 获取所有有漏洞的样本

@@ -71,16 +71,18 @@ class BigVulDataset:
         # 6. 平衡训练集和验证集（解决类别不平衡问题）
         if partition == "train" or partition == "val":
             vul = self.df[self.df.vul == 1]  # 获取所有有漏洞的样本
+            tem = self.df[self.df.vul == 0]
+            if len(vul) == 0 and len(self.df) == 0:
+                raise ValueError("数据集无任何有效样本！vul列全为无效值，请检查标签格式")
+            elif len(vul) == 0:
+                raise ValueError("数据集无漏洞样本（vul=1）！无法完成平衡采样")
+            elif len(tem) == 0:
+                raise ValueError("数据集无非漏洞样本（vul=0）！无法完成平衡采样")
             # 从无漏洞样本中随机采样与有漏洞样本数量相同的样本
             nonvul = self.df[self.df.vul == 0].sample(len(vul), random_state=0)
             # 合并有漏洞和无漏洞样本，实现1:1平衡
             self.df = pd.concat([vul, nonvul])
-            if len(vul) == 0 and len(nonvul_all) == 0:
-                raise ValueError("数据集无任何有效样本！vul列全为无效值，请检查标签格式")
-            elif len(vul) == 0:
-                raise ValueError("数据集无漏洞样本（vul=1）！无法完成平衡采样")
-            elif len(nonvul) == 0:
-                raise ValueError("数据集无非漏洞样本（vul=0）！无法完成平衡采样")   
+               
             
         
 

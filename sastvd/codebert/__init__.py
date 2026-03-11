@@ -31,7 +31,14 @@ class CodeBert:
         if os.path.exists(codebert_base_path):
             # 从本地路径加载 tokenizer 和模型
             self.tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
-            self.model = AutoModel.from_pretrained(codebert_base_path)
+            #self.model = AutoModel.from_pretrained(codebert_base_path)
+            self.model = AutoModel.from_pretrained(
+                codebert_base_path,
+                torch_dtype=torch.float32,
+                low_cpu_mem_usage=True,
+                # 明确设置 weights_only=False
+                weights_only=False
+                )
         else:
             # 设置缓存目录
             cache_dir = svd.get_dir(svd.cache_dir() / "codebert_model")

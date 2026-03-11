@@ -34,12 +34,36 @@ class CodeBert:
             # 从本地路径加载 tokenizer 和模型
             self.tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
 
-            self.model = AutoModel.from_pretrained(codebert_base_path)
+            #self.model = AutoModel.from_pretrained(codebert_base_path)
+            # self.model = AutoModel.from_pretrained(
+            #     codebert_base_path,
+            #     # 显式关闭 weights_only，解决加载失败问题
+            #     torch_dtype=torch.float32,  # 可选：指定 dtype，避免精度问题
+            #     torch_load_kwargs={"weights_only": False}
+            # )
+            # 2. 手动加载配置（关键：不通过 from_pretrained 自动加载权重）
+            config = AutoConfig.from_pretrained(codebert_base_path)
+            
+            # 3. 找到权重文件路径（处理不同命名情况）
+            weight_files = [f for f in os.listdir(codebert_base_path) if f.startswith("pytorch_model")]
+            if not weight_files:
+                raise FileNotFoundError(f"在 {codebert_base_path} 未找到 pytorch_model.bin 权重文件")
+            weight_file = os.path.join(codebert_base_path, weight_files[0])
+            
+            # 4. 手动调用 torch.load，强制设置 weights_only=False（核心！）
+            # 这里直接绕开 Transformers 的封装，自己控制 torch.load 参数
+            state_dict = torch.load(
+                weight_file,
+                map_location=torch.device("cpu"),  # 按需改：cuda / cpu
+                weights_only=False,  # 强制关闭安全加载
+                pickle_module=__import__('pickle')  # 显式指定 pickle，避免兼容问题
+            )
+            
+            # 5. 初始化模型并载入权重
             self.model = AutoModel.from_pretrained(
-                codebert_base_path,
-                # 显式关闭 weights_only，解决加载失败问题
-                torch_dtype=torch.float32,  # 可选：指定 dtype，避免精度问题
-                torch_load_kwargs={"weights_only": False}
+                pretrained_model_name_or_path=None,  # 不加载远程/自动权重
+                config=config,                      # 用本地配置
+                state_dict=state_dict               # 用手动加载的权重
             )
 
         else:

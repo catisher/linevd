@@ -7,6 +7,7 @@ from transformers import AutoModel, AutoTokenizer
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 from tsne_torch import TorchTSNE as TSNE
 import os
+import json
 # 强制使用 weights_only=False
 
 
@@ -42,31 +43,44 @@ class CodeBert:
             #     torch_dtype=torch.float32,  # 可选：指定 dtype，避免精度问题
             #     torch_load_kwargs={"weights_only": False}
             # )
-            # 2. 手动加载配置（关键：不通过 from_pretrained 自动加载权重）
-            config = AutoConfig.from_pretrained(codebert_base_path)
+            weight_file = os.path.join(codebert_base_path, "pytorch_model.bin")
+            if os.path.exists(weight_file):
+                # 加载单个权重文件
+                state_dict = torch.load(
+                    weight_file,
+                    map_location=torch.device("cpu"),
+                    weights_only=False
+                )
+            else:
+                # 2. 处理分块权重（pytorch_model-00001-of-00002.bin 这类）
+                index_file = os.path.join(codebert_base_path, "pytorch_model.bin.index.json")
+                if not os.path.exists(index_file):
+                    raise FileNotFoundError(
+                        f"在 {codebert_base_path} 未找到权重文件：\n"
+                        f"- 未找到单个权重：pytorch_model.bin\n"
+                        f"- 未找到分块索引：pytorch_model.bin.index.json"
+                    )
+                
+                # 读取分块索引，合并所有分块权重
+                with open(index_file, "r") as f:
+                    index_data = json.load(f)
+                
+                state_dict = {}
+                for shard_file in index_data["weight_map"].values():
+                    shard_path = os.path.join(codebert_base_path, shard_file)
+                    shard_state_dict = torch.load(
+                        shard_path,
+                        map_location=torch.device("cpu"),
+                        weights_only=False
+                    )
+                    state_dict.update(shard_state_dict)
             
-            # 3. 找到权重文件路径（处理不同命名情况）
-            weight_files = [f for f in os.listdir(codebert_base_path) if f.startswith("pytorch_model")]
-            if not weight_files:
-                raise FileNotFoundError(f"在 {codebert_base_path} 未找到 pytorch_model.bin 权重文件")
-            weight_file = os.path.join(codebert_base_path, weight_files[0])
-            
-            # 4. 手动调用 torch.load，强制设置 weights_only=False（核心！）
-            # 这里直接绕开 Transformers 的封装，自己控制 torch.load 参数
-            state_dict = torch.load(
-                weight_file,
-                map_location=torch.device("cuda"),  # 按需改：cuda / cpu
-                weights_only=False,  # 强制关闭安全加载
-                pickle_module=__import__('pickle')  # 显式指定 pickle，避免兼容问题
-            )
-            
-            # 5. 初始化模型并载入权重
+            # 初始化模型
             self.model = AutoModel.from_pretrained(
-                pretrained_model_name_or_path=None,  # 不加载远程/自动权重
-                config=config,                      # 用本地配置
-                state_dict=state_dict               # 用手动加载的权重
+                pretrained_model_name_or_path=None,
+                config=config,
+                state_dict=state_dict
             )
-
         else:
             # 设置缓存目录
             cache_dir = svd.get_dir(svd.cache_dir() / "codebert_model")

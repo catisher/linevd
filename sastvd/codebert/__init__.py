@@ -34,11 +34,9 @@ class CodeBert:
             #self.model = AutoModel.from_pretrained(codebert_base_path)
             self.model = AutoModel.from_pretrained(
                 codebert_base_path,
-                torch_dtype=torch.float32,
-                low_cpu_mem_usage=True,
-                # 明确设置 weights_only=False
-                weights_only=False
-                )
+                use_safetensors=False
+            )
+
         else:
             # 设置缓存目录
             cache_dir = svd.get_dir(svd.cache_dir() / "codebert_model")

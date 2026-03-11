@@ -1,14 +1,10 @@
 import os
-#os.environ['TRANSFORMERS_WEIGHTS_ONLY'] = 'False'
+
 import matplotlib.pyplot as plt
 import sastvd as svd
 import torch
 from transformers import AutoModel, AutoTokenizer
-from transformers import AutoTokenizer, AutoModel, AutoConfig
 from tsne_torch import TorchTSNE as TSNE
-import os
-import json
-# 强制使用 weights_only=False
 
 
 class CodeBert:
@@ -35,52 +31,12 @@ class CodeBert:
         if os.path.exists(codebert_base_path):
             # 从本地路径加载 tokenizer 和模型
             self.tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
-
             #self.model = AutoModel.from_pretrained(codebert_base_path)
-            # self.model = AutoModel.from_pretrained(
-            #     codebert_base_path,
-            #     # 显式关闭 weights_only，解决加载失败问题
-            #     torch_dtype=torch.float32,  # 可选：指定 dtype，避免精度问题
-            #     torch_load_kwargs={"weights_only": False}
-            # )
-            weight_file = os.path.join(codebert_base_path, "pytorch_model.bin")
-            if os.path.exists(weight_file):
-                # 加载单个权重文件
-                state_dict = torch.load(
-                    weight_file,
-                    map_location=torch.device("cpu"),
-                    weights_only=False
-                )
-            else:
-                # 2. 处理分块权重（pytorch_model-00001-of-00002.bin 这类）
-                index_file = os.path.join(codebert_base_path, "pytorch_model.bin.index.json")
-                if not os.path.exists(index_file):
-                    raise FileNotFoundError(
-                        f"在 {codebert_base_path} 未找到权重文件：\n"
-                        f"- 未找到单个权重：pytorch_model.bin\n"
-                        f"- 未找到分块索引：pytorch_model.bin.index.json"
-                    )
-                
-                # 读取分块索引，合并所有分块权重
-                with open(index_file, "r") as f:
-                    index_data = json.load(f)
-                
-                state_dict = {}
-                for shard_file in index_data["weight_map"].values():
-                    shard_path = os.path.join(codebert_base_path, shard_file)
-                    shard_state_dict = torch.load(
-                        shard_path,
-                        map_location=torch.device("cpu"),
-                        weights_only=False
-                    )
-                    state_dict.update(shard_state_dict)
-            
-            # 初始化模型
             self.model = AutoModel.from_pretrained(
-                pretrained_model_name_or_path=None,
-                config=config,
-                state_dict=state_dict
+                codebert_base_path,
+                use_safetensors=False
             )
+
         else:
             # 设置缓存目录
             cache_dir = svd.get_dir(svd.cache_dir() / "codebert_model")

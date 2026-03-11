@@ -1,5 +1,5 @@
 import os
-os.environ['TRANSFORMERS_WEIGHTS_ONLY'] = 'False'
+#os.environ['TRANSFORMERS_WEIGHTS_ONLY'] = 'False'
 import matplotlib.pyplot as plt
 import sastvd as svd
 import torch
@@ -35,10 +35,12 @@ class CodeBert:
             self.tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
 
             self.model = AutoModel.from_pretrained(codebert_base_path)
-            # self.model = AutoModel.from_pretrained(
-            #     codebert_base_path,
-            #     use_safetensors=False
-            # )
+            self.model = AutoModel.from_pretrained(
+                codebert_base_path,
+                # 显式关闭 weights_only，解决加载失败问题
+                torch_dtype=torch.float32,  # 可选：指定 dtype，避免精度问题
+                torch_load_kwargs={"weights_only": False}
+            )
 
         else:
             # 设置缓存目录

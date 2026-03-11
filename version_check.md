@@ -108,3 +108,6 @@ python tests/try.py
 python tests/check_distribution.py
 
 python sastvd/ivdetect/main.py
+
+python sastvd/scripts/run_method.py
+ 

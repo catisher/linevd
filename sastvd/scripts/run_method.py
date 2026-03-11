@@ -141,9 +141,10 @@ analysis = tune.run(
     metric="val_loss",  # 优化指标
     mode="min",  # 优化模式（最小化验证损失）
     config=config,  # 超参数配置
-    num_samples=1000,  # 试验次数
+    # num_samples=1000,  # 试验次数
+    num_samples=1,  # 试验次数
     name="tune_linevd",  # 实验名称
-    local_dir=sp,  # 本地保存目录
+    storage_path=sp,  # 本地保存目录
     keep_checkpoints_num=2,  # 保留的检查点数量
     checkpoint_score_attr="min-val_loss",  # 检查点评分属性
 )

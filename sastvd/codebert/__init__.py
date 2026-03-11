@@ -37,7 +37,7 @@ class CodeBert:
             #     use_safetensors=False
             # )
             self.model = AutoModel.from_pretrained(
-                self.model_name,
+                codebert_base_path,
                 trust_remote_code=True  # 关键新增参数
             )
 

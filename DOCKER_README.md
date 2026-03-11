@@ -127,3 +127,8 @@ make clean 2>/dev/null
 ./configure --prefix=$HOME/.local --with-expat-lib=$CONDA_PREFIX/lib --with-expat-include=$CONDA_PREFIX/include
 make
 make install
+
+
+## 需要再特定目录下下载codebert模型
+## 否则会报错
+git clone git@hf.co:microsoft/codebert-base

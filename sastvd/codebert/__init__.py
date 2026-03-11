@@ -5,6 +5,8 @@ import sastvd as svd
 import torch
 from transformers import AutoModel, AutoTokenizer
 from tsne_torch import TorchTSNE as TSNE
+import os
+# 强制使用 weights_only=False
 
 
 class CodeBert:
@@ -31,11 +33,12 @@ class CodeBert:
         if os.path.exists(codebert_base_path):
             # 从本地路径加载 tokenizer 和模型
             self.tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
-            #self.model = AutoModel.from_pretrained(codebert_base_path)
-            self.model = AutoModel.from_pretrained(
-                codebert_base_path,
-                use_safetensors=False
-            )
+            os.environ['TRANSFORMERS_WEIGHTS_ONLY'] = 'False'
+            self.model = AutoModel.from_pretrained(codebert_base_path)
+            # self.model = AutoModel.from_pretrained(
+            #     codebert_base_path,
+            #     use_safetensors=False
+            # )
 
         else:
             # 设置缓存目录

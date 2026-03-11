@@ -31,16 +31,8 @@ class CodeBert:
         if os.path.exists(codebert_base_path):
             # 从本地路径加载 tokenizer 和模型
             self.tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
-            #self.model = AutoModel.from_pretrained(codebert_base_path)
-            # self.model = AutoModel.from_pretrained(
-            #     codebert_base_path,
-            #     use_safetensors=False
-            # )
-            self.model = AutoModel.from_pretrained(
-                codebert_base_path,
-                trust_remote_code=True  # 关键新增参数
-            )
-
+            self.model = AutoModel.from_pretrained(codebert_base_path)
+            
         else:
             # 设置缓存目录
             cache_dir = svd.get_dir(svd.cache_dir() / "codebert_model")

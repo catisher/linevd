@@ -94,9 +94,11 @@ pip show tsne_torch
 
 ## 代码执行
 
-python sastvd/scripts/getgraphs.py 
-export PATH=$PATH:/home/wmy/GloVe/build
+nohup python sastvd/scripts/getgraphs.py 1 > getgraphs.log 2>&1 &
 
+python sastvd/scripts/getgraphs.py 
+
+export PATH=$PATH:/home/wmy/GloVe/build
 python sastvd/scripts/prepare.py 
 
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
@@ -104,3 +106,5 @@ python sastvd/scripts/train_best.py
 
 python tests/try.py
 python tests/check_distribution.py
+
+python sastvd/ivdetect/main.py

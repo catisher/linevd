@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import sastvd as svd
 import torch
 from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer, AutoModel, AutoConfig
 from tsne_torch import TorchTSNE as TSNE
 import os
 # 强制使用 weights_only=False
@@ -54,7 +55,7 @@ class CodeBert:
             # 这里直接绕开 Transformers 的封装，自己控制 torch.load 参数
             state_dict = torch.load(
                 weight_file,
-                map_location=torch.device("cpu"),  # 按需改：cuda / cpu
+                map_location=torch.device("cuda"),  # 按需改：cuda / cpu
                 weights_only=False,  # 强制关闭安全加载
                 pickle_module=__import__('pickle')  # 显式指定 pickle，避免兼容问题
             )

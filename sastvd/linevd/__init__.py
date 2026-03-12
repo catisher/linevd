@@ -237,7 +237,10 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         # 将已处理的ID转换为集合，以便快速查找
         done = set(done)
         # 将数据分为每批128个样本
-        batches = svd.chunks((range(len(self.df))), 128)
+        ## 修改大小，内存不够
+        #batches = svd.chunks((range(len(self.df))), 128)
+        batches = svd.chunks((range(len(self.df))), 32)
+        
         # 遍历每个批次，使用tqdm显示处理进度
         for idx_batch in tqdm(batches):
             # 从DataFrame中获取当前批次的文本数据（before列）

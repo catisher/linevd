@@ -111,3 +111,4 @@ python sastvd/ivdetect/main.py
 
 python sastvd/scripts/run_method.py
  
+scp D:\repositories\codebert-base.zip wmy@10.1.0.11:/home/wmy/linevd/storage/external/

@@ -230,19 +230,33 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
 
         ONLY NEEDS TO BE RUN ONCE.
         """
+        # 获取缓存目录，用于存储CodeBERT嵌入
         savedir = svd.get_dir(svd.cache_dir() / "codebert_method_level")
+        # 从缓存目录中读取已处理的文件，提取ID
         done = [int(i.split("/")[-1].split(".")[0]) for i in glob(str(savedir / "*"))]
+        # 将已处理的ID转换为集合，以便快速查找
         done = set(done)
+        # 将数据分为每批128个样本
         batches = svd.chunks((range(len(self.df))), 128)
+        # 遍历每个批次，使用tqdm显示处理进度
         for idx_batch in tqdm(batches):
+            # 从DataFrame中获取当前批次的文本数据（before列）
             batch_texts = self.df.iloc[idx_batch[0] : idx_batch[-1] + 1].before.tolist()
+            # 从DataFrame中获取当前批次的ID
             batch_ids = self.df.iloc[idx_batch[0] : idx_batch[-1] + 1].id.tolist()
+            # 检查当前批次的所有ID是否都已处理过
             if set(batch_ids).issubset(done):
+                # 如果已处理，跳过当前批次
                 continue
+            # 在每个文本前添加结束标记</s>，这是CodeBERT的输入格式要求
             texts = ["</s> " + ct for ct in batch_texts]
+            # 使用CodeBERT编码文本，生成嵌入向量，然后将结果从GPU移至CPU
             embedded = codebert.encode(texts).detach().cpu()
+            # 确保文本数量和ID数量一致
             assert len(batch_texts) == len(batch_ids)
+            # 遍历每个样本
             for i in range(len(batch_texts)):
+                # 将每个样本的嵌入保存到文件，文件名使用ID
                 th.save(embedded[i], savedir / f"{batch_ids[i]}.pt")
 
     def __getitem__(self, idx):

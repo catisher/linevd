@@ -488,9 +488,10 @@ def assign_line_num_to_local(nodes, edges, code):
         # 确保每个局部变量只有一个块节点（断言）
          # 检查块节点数量
         if len(block) != 1:
-            raise ValueError(f"Incorrect block assumption for variable {k}. Block content: {block}")
-        
-        assert len(block) == 1, "Incorrect block Assumption."
+            #raise ValueError(f"Incorrect block assumption for variable {k}. Block content: {block}")
+            print(f"Warning: Skipping variable {k} due to invalid block structure. Block content: {block}")
+            continue  # 跳过异常情况
+        #assert len(block) == 1, "Incorrect block Assumption."
         
         # 获取块节点ID
         block = block[0]

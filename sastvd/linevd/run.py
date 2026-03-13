@@ -59,7 +59,8 @@ def train_linevd(
         hfeat=config["hfeat"],
         embtype=config["embtype"],
         methodlevel=False,  # 不使用方法级预测
-        nsampling=True,  # 使用邻居采样
+        #nsampling=True,  # 使用邻居采样
+        nsampling=False,  # 使用邻居采样
         model=config["modeltype"],
         loss=config["loss"],
         hdropout=config["hdropout"],

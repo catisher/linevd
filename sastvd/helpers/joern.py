@@ -292,10 +292,20 @@ def get_node_edges(filepath: str, verbose=0):
             # 添加新节点到 nodes DataFrame
             ## 这里显示append 是 pandas已弃用的方法
             ## to be modified
-            nodes = nodes.append(
-                {"id": e.outnode, "node_label": node_label, "lineNumber": lineNum},
-                ignore_index=True,
-            )
+            # nodes = nodes.append(
+            #     {"id": e.outnode, "node_label": node_label, "lineNumber": lineNum},
+            #     ignore_index=True,
+            # )
+              # ========== 核心修改：替换 append 为 pd.concat ==========
+            # 1. 构建新行的 DataFrame（必须用列表包裹字典，否则会按列解析）
+            new_node = pd.DataFrame([{
+                "id": e.outnode, 
+                "node_label": node_label, 
+                "lineNumber": lineNum
+            }])
+            # 2. 合并原 nodes 和新行，重置索引（对应 ignore_index=True）
+            nodes = pd.concat([nodes, new_node], ignore_index=True)
+            # ======================================================
 
     # 返回节点和边
     return nodes, edges

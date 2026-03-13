@@ -238,8 +238,8 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         done = set(done)
         # 将数据分为每批128个样本
         ## 修改大小，内存不够
-        batches = svd.chunks((range(len(self.df))), 128)
-        #batches = svd.chunks((range(len(self.df))), 32)
+        #batches = svd.chunks((range(len(self.df))), 128)
+        batches = svd.chunks((range(len(self.df))), 64)
         
         # 遍历每个批次，使用tqdm显示处理进度
         for idx_batch in tqdm(batches):
@@ -443,8 +443,8 @@ class LitGNN(pl.LightningModule):
             self.loss_f = th.nn.CrossEntropyLoss()
         else:
             self.loss = th.nn.CrossEntropyLoss(
-                #weight=th.Tensor([1, self.hparams.stmtweight]).cuda()
-                weight=th.Tensor([1, self.hparams.stmtweight])
+                weight=th.Tensor([1, self.hparams.stmtweight]).cuda()
+                #weight=th.Tensor([1, self.hparams.stmtweight])
             )
             self.loss_f = th.nn.CrossEntropyLoss()
 

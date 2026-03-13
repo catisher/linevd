@@ -77,7 +77,8 @@ def train_linevd(
         batch_size=config["batch_size"],
         sample=samplesz,
         methodlevel=False,
-        nsampling=True,
+        #nsampling=True
+        nsampling=False,
         nsampling_hops=2,  # 邻居采样的跳数
         gtype=config["gtype"],
         splits=config["splits"],

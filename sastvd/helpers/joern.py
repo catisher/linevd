@@ -429,43 +429,110 @@ def rdg(edges, gtype):
 
 
 def assign_line_num_to_local(nodes, edges, code):
-    """为代码属性图(CPG)中的局部变量分配行号。"""
+    """为代码属性图(CPG)中的局部变量分配行号。
+    
+    参数:
+        nodes: 节点数据框，包含代码的所有节点信息
+        edges: 边数据框，包含代码的所有边信息
+        code: 代码行列表，用于查找局部变量的声明位置
+    
+    返回:
+        dict: 局部变量ID到行号的映射字典
+    """
+    # 提取所有标记为 "LOCAL" 的节点ID（局部变量节点）
     label_nodes = nodes[nodes._label == "LOCAL"].id.tolist()
+    
+    # 获取局部变量节点的1跳邻居（通过AST边）
     onehop_labels = neighbour_nodes(nodes, rdg(edges, "ast"), label_nodes, 1, False)
+    
+    # 获取局部变量节点的2跳邻居（通过类型引用边）
     twohop_labels = neighbour_nodes(nodes, rdg(edges, "reftype"), label_nodes, 2, False)
+    
+    # 提取所有标记为 "TYPE" 的节点（类型节点）
     node_types = nodes[nodes._label == "TYPE"]
+    
+    # 创建类型ID到类型名称的映射字典
     id2name = pd.Series(node_types.name.values, index=node_types.id).to_dict()
+    
+    # 提取所有块节点和控制结构节点
     node_blocks = nodes[
         (nodes._label == "BLOCK") | (nodes._label == "CONTROL_STRUCTURE")
     ]
+    
+    # 创建块节点ID到行号的映射字典
     blocknode2line = pd.Series(
         node_blocks.lineNumber.values, index=node_blocks.id
     ).to_dict()
+    
+    # 存储局部变量类型的字典
     local_vars = dict()
+    
+    # 存储局部变量所在块的字典
     local_vars_block = dict()
+    
+    # 遍历每个局部变量的2跳邻居
     for k, v in twohop_labels.items():
+        # 过滤出有效的类型节点（类型节点ID通常小于1000）
         types = [i for i in v if i in id2name and i < 1000]
+        
+        # 如果没有找到类型节点，跳过
         if len(types) == 0:
             continue
+        
+        # 确保每个局部变量只有一个类型（断言）
         assert len(types) == 1, "Incorrect Type Assumption."
+        
+        # 获取局部变量的块节点
         block = onehop_labels[k]
+        
+        # 确保每个局部变量只有一个块节点（断言）
+         # 检查块节点数量
+        if len(block) != 1:
+            raise ValueError(f"Incorrect block assumption for variable {k}. Block content: {block}")
+        
         assert len(block) == 1, "Incorrect block Assumption."
+        
+        # 获取块节点ID
         block = block[0]
+        
+        # 存储局部变量的类型
         local_vars[k] = id2name[types[0]]
+        
+        # 存储局部变量所在块的行号
         local_vars_block[k] = blocknode2line[block]
+    
+    # 将局部变量类型映射到节点数据框
     nodes["local_type"] = nodes.id.map(local_vars)
+    
+    # 将局部变量所在块映射到节点数据框
     nodes["local_block"] = nodes.id.map(local_vars_block)
+    
+    # 存储局部变量ID到行号的映射字典
     local_line_map = dict()
+    
+    # 遍历所有非空的局部变量节点
     for row in nodes.dropna().itertuples():
+        # 构建局部变量声明的字符串表示（类型+名称+分号）
         localstr = "".join((row.local_type + row.name).split()) + ";"
+        
         try:
-            ln = ["".join(i.split()) for i in code][int(row.local_block) :].index(
+            # 从块的起始行开始查找局部变量声明
+            # 首先将代码行标准化（移除空格）
+            # 然后在块的起始行之后查找匹配的声明
+            ln = ["" .join(i.split()) for i in code][int(row.local_block) :].index(
                 localstr
             )
+            
+            # 计算局部变量声明的实际行号
             rel_ln = row.local_block + ln + 1
+            
+            # 存储局部变量ID到行号的映射
             local_line_map[row.id] = rel_ln
         except:
+            # 如果找不到声明，跳过
             continue
+    
+    # 返回局部变量ID到行号的映射字典
     return local_line_map
 
 

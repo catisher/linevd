@@ -52,7 +52,8 @@ test_dl = GraphDataLoader(test_ds, batch_size=64, **dl_args)
 
 # 创建模型
 # 选择计算设备，优先使用CUDA GPU，如果不可用则使用CPU
-dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+dev = torch.device("cpu")
 # 打印调试信息，显示当前使用的设备
 svd.debug(dev)
 # 创建IVDetect模型实例

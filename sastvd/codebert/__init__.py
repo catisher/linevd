@@ -46,7 +46,8 @@ class CodeBert:
             )
         
         # 选择计算设备（GPU优先）
-        self._dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        #self._dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self._dev = torch.device("cpu")
         # 将模型移动到指定设备
         self.model.to(self._dev)
 

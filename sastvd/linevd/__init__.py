@@ -649,11 +649,17 @@ class LitGNN(pl.LightningModule):
         mcc = self.mcc(pred.argmax(1), labels)
         # print(pred.argmax(1), labels)
 
-        self.log("train_loss", loss, on_epoch=True, prog_bar=True, logger=True)
-        self.log("train_acc", acc, prog_bar=True, logger=True)
+        # 获取batch_size
+        if self.hparams.nsampling:
+            batch_size = labels.shape[0]
+        else:
+            batch_size = batch.number_of_nodes()
+
+        self.log("train_loss", loss, on_epoch=True, prog_bar=True, logger=True, batch_size=batch_size)
+        self.log("train_acc", acc, prog_bar=True, logger=True, batch_size=batch_size)
         if not self.hparams.methodlevel:
-            self.log("train_acc_func", acc_func, prog_bar=True, logger=True)
-        self.log("train_mcc", mcc, prog_bar=True, logger=True)
+            self.log("train_acc_func", acc_func, prog_bar=True, logger=True, batch_size=batch_size)
+        self.log("train_mcc", mcc, prog_bar=True, logger=True, batch_size=batch_size)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -680,11 +686,17 @@ class LitGNN(pl.LightningModule):
         acc = self.accuracy(pred.argmax(1), labels)
         mcc = self.mcc(pred.argmax(1), labels)
 
-        self.log("val_loss", loss, on_step=True, prog_bar=True, logger=True)
+        # 获取batch_size
+        if self.hparams.nsampling:
+            batch_size = labels.shape[0]
+        else:
+            batch_size = batch.number_of_nodes()
+
+        self.log("val_loss", loss, on_step=True, prog_bar=True, logger=True, batch_size=batch_size)
         self.auroc.update(logits[:, 1], labels)
-        self.log("val_auroc", self.auroc, prog_bar=True, logger=True)
-        self.log("val_acc", acc, prog_bar=True, logger=True)
-        self.log("val_mcc", mcc, prog_bar=True, logger=True)
+        self.log("val_auroc", self.auroc, prog_bar=True, logger=True, batch_size=batch_size)
+        self.log("val_acc", acc, prog_bar=True, logger=True, batch_size=batch_size)
+        self.log("val_mcc", mcc, prog_bar=True, logger=True, batch_size=batch_size)
         return loss
 
     def test_step(self, batch, batch_idx):

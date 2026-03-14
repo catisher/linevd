@@ -25,7 +25,7 @@ def train_linevd(
     savepath, 
     samplesz=-1, 
     ## test
-    max_epochs=130
+    max_epochs=130,
     #max_epochs=5, 
     num_gpus=1, 
     checkpoint_dir=None

@@ -25,8 +25,8 @@ def train_linevd(
     savepath, 
     samplesz=-1, 
     ## test
-    #max_epochs=130
-    max_epochs=5, 
+    max_epochs=130
+    #max_epochs=5, 
     num_gpus=1, 
     checkpoint_dir=None
 ):
@@ -91,8 +91,8 @@ def train_linevd(
     raytune_callback = TuneReportCallback(metrics, on="validation_end")  # RayTune报告回调
     rtckpt_callback = TuneReportCheckpointCallback(metrics, on="validation_end")  # RayTune检查点回调
     trainer = pl.Trainer(
-        gpus=0,
-        #gpus=1,
+        #gpus=0,
+        gpus=1,
         auto_lr_find=False,  # 不自动寻找学习率
         default_root_dir=savepath,
         num_sanity_val_steps=0,  # 不进行验证前的 sanity 检查

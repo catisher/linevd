@@ -44,8 +44,8 @@ sp = svd.get_dir(svd.processed_dir() / f"raytune_best_{samplesz}" / run_id)
 trainable = tune.with_parameters(
     lvdrun.train_linevd, 
     ## test
-    ## max_epochs=130,
-    max_epochs= 5, 
+    max_epochs=130,
+    #max_epochs= 5, 
     samplesz=samplesz, 
     savepath=sp
 )
@@ -57,8 +57,8 @@ analysis = tune.run(
     metric="val_loss",  # 优化指标
     mode="min",  # 优化模式（最小化验证损失）
     config=config,  # 最佳超参数配置
-    #num_samples=1000,  # 试验次数
-    num_samples=1,  # 试验次数
+    num_samples=1000,  # 试验次数
+    #num_samples=1,  # 试验次数
     name="tune_linevd",  # 实验名称
     storage_path=sp,  # 本地保存目录
     keep_checkpoints_num=1,  # 保留的检查点数量（仅保留最佳模型）

@@ -443,8 +443,8 @@ class LitGNN(pl.LightningModule):
             self.loss_f = th.nn.CrossEntropyLoss()
         else:
             self.loss = th.nn.CrossEntropyLoss(
-                #weight=th.Tensor([1, self.hparams.stmtweight])
-                weight=th.Tensor([1, self.hparams.stmtweight]).cuda()
+                weight=th.Tensor([1, self.hparams.stmtweight])
+                #weight=th.Tensor([1, self.hparams.stmtweight]).cuda()
             )
             self.loss_f = th.nn.CrossEntropyLoss()
 

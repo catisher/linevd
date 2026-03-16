@@ -69,7 +69,7 @@ if __name__ == "__main__":
     print("RESRANK")  # 排名相关指标
     print(model.res3vo)
     print("RESLINE")  # 行级指标
-    print(model.res2)
+    print(model.res2)   
 
     # 获取首排名的代码行
     # 筛选出包含漏洞的函数（最大预测概率为1）

@@ -27,7 +27,7 @@ config = {
     "scea": tune.choice([0.5]),  # SCEA参数（最优值：0.5）
     "gtype": tune.choice(["pdg+raw"]),  # 图类型（最优值：程序依赖图+原始特征）
     #"batch_size": tune.choice([1024]),  # 批次大小（最优值：1024）
-    "batch_size": tune.choice([512]),
+    "batch_size": tune.choice([256]),
     "multitask": tune.choice(["linemethod"]),  # 多任务类型（最优值：行+方法级）
     "splits": tune.choice(["default"]),  # 数据集分割方式（最优值：默认分割）
     "lr": tune.choice([1e-4]),  # 学习率（最优值：1e-4）

@@ -112,3 +112,7 @@ python sastvd/ivdetect/main.py
 python sastvd/scripts/run_method.py
  
 scp D:\repositories\codebert-base.zip wmy@10.1.0.11:/home/wmy/linevd/storage/external/
+
+nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
+
+tail -f train.log

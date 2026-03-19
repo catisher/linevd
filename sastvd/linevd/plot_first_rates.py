@@ -24,23 +24,28 @@ if __name__ == "__main__":
 
     # 获取存储在storage/processed目录下的Ray Tune分析目录
     raytune_dirs = glob(str(svd.processed_dir() / "raytune_*_-1"))
-    tune_dirs = [i for j in [glob(f"{rd}/*") for rd in raytune_dirs] for i in j]
+    # 修正路径，指向 tune_linevd 子目录
+    tune_dirs = [i for j in [glob(f"{rd}/*/tune_linevd") for rd in raytune_dirs] for i in j]
 
     # 加载完整的数据框
     df_list = []
     for d in tune_dirs:
-        df_list.append(ExperimentAnalysis(d).dataframe())
+        try:
+            df_list.append(ExperimentAnalysis(d).dataframe())
+        except Exception as e:
+            print(f"Warning: Failed to load {d}: {e}")
+    
+    if not df_list:
+        print("Error: No valid experiment data found")
+        exit(1)
+    
     df = pd.concat(df_list)
     # 筛选使用默认数据分割的结果
     df = df[df["config/splits"] == "default"]
 
-    # 加载结果数据框
-    results = glob(str(svd.outputs_dir() / "rq_results_new/*.csv"))
-    res_df = pd.concat([pd.read_csv(i) for i in results])
-
-    # 合并数据框并选择性能最佳的模型
-    mdf = df.merge(res_df[["trial_id", "checkpoint", "stmt_f1"]], on="trial_id")
-    best = mdf.sort_values("stmt_f1", ascending=0).iloc[0]
+    # 直接从 ExperimentAnalysis 中选择最佳模型
+    # 按验证损失排序，选择损失最小的模型
+    best = df.sort_values("val_loss", ascending=True).iloc[0]
     best_path = f"{best['logdir']}/{best['checkpoint']}/checkpoint"
 
     # Load modules

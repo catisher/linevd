@@ -31,17 +31,22 @@ if __name__ == "__main__":
     df_list = []
     for d in tune_dirs:
         try:
-            df_list.append(ExperimentAnalysis(d).dataframe())
+            analysis = ExperimentAnalysis(d)
+            df_list.append(analysis.dataframe())
+            print(f"Successfully loaded: {d}")
         except Exception as e:
-            print(f"Warning: Failed to load {d}: {e}")
+            print(f"Warning: Skipping {d} - {e}")
     
     if not df_list:
         print("Error: No valid experiment data found")
         exit(1)
     
     df = pd.concat(df_list)
+    print(f"Loaded {len(df_list)} experiments with {len(df)} trials total")
+    
     # 筛选使用默认数据分割的结果
     df = df[df["config/splits"] == "default"]
+    print(f"After filtering: {len(df)} trials with default splits")
 
     # 直接从 ExperimentAnalysis 中选择最佳模型
     # 按验证损失排序，选择损失最小的模型

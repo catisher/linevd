@@ -47,11 +47,19 @@ if __name__ == "__main__":
     # 筛选使用默认数据分割的结果
     df = df[df["config/splits"] == "default"]
     print(f"After filtering: {len(df)} trials with default splits")
+    
+    # 打印可用的列名，用于调试
+    print(f"Available columns: {df.columns.tolist()}")
 
     # 直接从 ExperimentAnalysis 中选择最佳模型
     # 按验证损失排序，选择损失最小的模型
     best = df.sort_values("val_loss", ascending=True).iloc[0]
-    best_path = f"{best['logdir']}/{best['checkpoint']}/checkpoint"
+    print(f"Best trial: {best.name}")
+    print(f"Best trial logdir: {best['logdir']}")
+    
+    # 构建检查点路径 - 直接使用 logdir
+    best_path = f"{best['logdir']}/checkpoint"
+    print(f"Best checkpoint path: {best_path}")
 
     # Load modules
     ## 被ai注释掉的

@@ -810,7 +810,9 @@ class LitGNN(pl.LightningModule):
             multitask_true += list(af[1])
         self.linevd_pred = multitask_pred
         self.linevd_true = multitask_true
-        multitask_true = th.LongTensor(multitask_true)
+        #multitask_true = th.LongTensor(multitask_true)
+        import numpy as np
+        multitask_true = th.LongTensor(np.array(multitask_true).astype(int))
         multitask_pred = th.Tensor(multitask_pred)
         self.f1thresh = ml.best_f1(multitask_true, [i[1] for i in multitask_pred])
         self.res2mt = ml.get_metrics_logits(multitask_true, multitask_pred)

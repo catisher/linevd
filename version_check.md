@@ -116,3 +116,5 @@ scp D:\repositories\codebert-base.zip wmy@10.1.0.11:/home/wmy/linevd/storage/ext
 nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
 
 tail -f train.log
+
+python sastvd/linevd/count_bigvul.py

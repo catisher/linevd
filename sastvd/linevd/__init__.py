@@ -208,7 +208,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         g.ndata["_FVULN"] = g.ndata["_VULN"].max().repeat((g.number_of_nodes()))
         g.edata["_ETYPE"] = th.Tensor(et).long()
         emb_path = svd.cache_dir() / f"codebert_method_level/{_id}.pt"
-        g.ndata["_FUNC_EMB"] = th.load(emb_path).repeat((g.number_of_nodes(), 1))
+        g.ndata["_FUNC_EMB"] = th.load(emb_path, weights_only=True).repeat((g.number_of_nodes(), 1))
         g = dgl.add_self_loop(g)
         save_graphs(str(savedir), [g])
         return g

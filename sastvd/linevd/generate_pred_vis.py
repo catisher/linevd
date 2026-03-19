@@ -56,7 +56,7 @@ def preds(model, datapartition, vid):
 def save_html_preds(vid, model, data):
     """将模型预测结果保存为HTML可视化文件。
     
-    参数:
+    参数: 
         vid: 代码片段的唯一标识符
         model: 训练好的LineVD模型
         data: 数据分区

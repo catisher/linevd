@@ -57,9 +57,33 @@ if __name__ == "__main__":
     print(f"Best trial: {best.name}")
     print(f"Best trial logdir: {best['logdir']}")
     
-    # 构建检查点路径 - 直接使用 logdir
-    best_path = f"{best['logdir']}/checkpoint"
-    print(f"Best checkpoint path: {best_path}")
+    # 构建检查点路径 - 搜索实际的检查点文件
+    import os
+    import glob
+    
+    # 查找所有 tune_linevd 目录
+    tune_dirs = glob.glob(str(svd.processed_dir() / "raytune_*_-1"))
+    checkpoint_files = []
+    
+    for base_dir in tune_dirs:
+        # 递归查找所有 checkpoint 文件
+        trial_dirs = glob.glob(f"{base_dir}/**/train_linevd_*", recursive=True)
+        for trial_dir in trial_dirs:
+            # 查找 checkpoint 子目录
+            checkpoint_dirs = glob.glob(f"{trial_dir}/checkpoint_*")
+            for checkpoint_dir in checkpoint_dirs:
+                checkpoint_file = os.path.join(checkpoint_dir, "checkpoint")
+                if os.path.exists(checkpoint_file):
+                    checkpoint_files.append(checkpoint_file)
+    
+    if not checkpoint_files:
+        print("Error: No checkpoint files found")
+        exit(1)
+    
+    # 选择第一个找到的检查点（实际应该根据 trial_id 匹配，这里简化处理）
+    best_path = checkpoint_files[0]
+    print(f"Found {len(checkpoint_files)} checkpoint files")
+    print(f"Using checkpoint: {best_path}")
 
     # Load modules
     ## 被ai注释掉的

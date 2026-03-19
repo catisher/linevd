@@ -118,3 +118,5 @@ nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
 tail -f train.log
 
 python sastvd/linevd/count_bigvul.py
+
+python sastvd/linevd/plot_first_rates.py

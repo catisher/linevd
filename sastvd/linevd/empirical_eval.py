@@ -9,7 +9,7 @@ import sastvd as svd
 import sastvd.helpers.dclass as svddc
 import sastvd.linevd as lvd
 import sastvd.linevd.c_builtins as cbuiltin
-from ray.tune import Analysis
+from ray.tune import ExperimentAnalysis
 from tqdm import tqdm
 
 
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # Load full dataframe
     df_list = []
     for d in tune_dirs:
-        df_list.append(Analysis(d).dataframe())
+        df_list.append(ExperimentAnalysis(d).dataframe())
     df = pd.concat(df_list)
     df = df[df["config/splits"] == "default"]
 
@@ -131,7 +131,7 @@ if __name__ == "__main__":
         "splits": best["config/splits"],
     }
     data = lvd.BigVulDatasetLineVDDataModule(**datamodule_args)
-    trainer = pl.Trainer(gpus=1, default_root_dir="/tmp/")
+    trainer = pl.Trainer(accelerator='gpu', devices=1, default_root_dir="/tmp/")
     model = lvd.LitGNN.load_from_checkpoint(best_path, strict=False)
     trainer.test(model, data)
 

@@ -18,7 +18,7 @@ import pytorch_lightning as pl
 import sastvd as svd
 import sastvd.linevd as lvd
 import seaborn as sns
-from ray.tune import ResultGrid
+from ray.tune import ExperimentAnalysis
 
 if __name__ == "__main__":
 
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # 加载完整的数据框
     df_list = []
     for d in tune_dirs:
-        df_list.append(ResultGrid(d).dataframe())
+        df_list.append(ExperimentAnalysis(d).dataframe())
     df = pd.concat(df_list)
     # 筛选使用默认数据分割的结果
     df = df[df["config/splits"] == "default"]

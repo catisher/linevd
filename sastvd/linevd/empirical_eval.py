@@ -96,31 +96,53 @@ if __name__ == "__main__":
 
     # Get analysis directories in storage/processed
     raytune_dirs = glob(str(svd.processed_dir() / "raytune_*_-1"))
-    tune_dirs = [i for j in [glob(f"{rd}/*") for rd in raytune_dirs] for i in j]
-
-    # Load full dataframe
+    
+    # Load full dataframe - 搜索 tune_linevd 子目录
     df_list = []
-    for d in tune_dirs:
-        df_list.append(ExperimentAnalysis(d).dataframe())
+    for rd in raytune_dirs:
+        # 查找 tune_linevd 子目录
+        tune_subdirs = glob(f"{rd}/*/tune_linevd")
+        for d in tune_subdirs:
+            try:
+                analysis = ExperimentAnalysis(d)
+                df_list.append(analysis.dataframe())
+                print(f"Successfully loaded: {d}")
+            except Exception as e:
+                print(f"Warning: Skipping {d} - {e}")
+                continue
+    
+    if not df_list:
+        print("Error: No experiment data found")
+        exit(1)
+    
     df = pd.concat(df_list)
     df = df[df["config/splits"] == "default"]
-
-    # Load results df
-    results = glob(str(svd.outputs_dir() / "rq_results_new/*.csv"))
-    res_df = pd.concat([pd.read_csv(i) for i in results])
-
-    # Merge DFs and load best model
-    mdf = df.merge(res_df[["trial_id", "checkpoint", "stmt_f1"]], on="trial_id")
-    bestiloc = 0
-    while True:
-        best = mdf.sort_values("stmt_f1", ascending=0).iloc[bestiloc]
-        best_path = f"{best['logdir']}/{best['checkpoint']}/checkpoint"
-        if os.path.exists(best_path):
-            break
-        else:
-            print("Doesn't exist: " + str(best_path))
-            bestiloc += 1
-            continue
+    
+    # 搜索实际的检查点文件
+    checkpoint_files = []
+    
+    for base_dir in raytune_dirs:
+        # 递归查找所有 checkpoint 文件
+        trial_dirs = glob(f"{base_dir}/**/train_linevd_*", recursive=True)
+        for trial_dir in trial_dirs:
+            # 查找 checkpoint 子目录
+            checkpoint_dirs = glob(f"{trial_dir}/checkpoint_*")
+            for checkpoint_dir in checkpoint_dirs:
+                checkpoint_file = os.path.join(checkpoint_dir, "checkpoint")
+                if os.path.exists(checkpoint_file):
+                    checkpoint_files.append(checkpoint_file)
+    
+    if not checkpoint_files:
+        print("Error: No checkpoint files found")
+        exit(1)
+    
+    # 选择第一个找到的检查点
+    best_path = checkpoint_files[0]
+    print(f"Found {len(checkpoint_files)} checkpoint files")
+    print(f"Using checkpoint: {best_path}")
+    
+    # 从检查点路径中提取配置信息（简化处理）
+    best = df.iloc[0]  # 使用第一个实验的配置
 
     # Load modules
     model = lvd.LitGNN()

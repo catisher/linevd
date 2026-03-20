@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import torch
+import dgl
 from glob import glob
 from pathlib import Path
 
@@ -11,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.
 import sastvd.linevd as lvd
 import sastvd as svd
 import sastvd.helpers.joern as svdj
+import sastvd.codebert as cb
 
 class LineVDPredictor:
     """LineVD 模型预测器"""
@@ -18,11 +20,16 @@ class LineVDPredictor:
     def __init__(self):
         """初始化预测器"""
         self.model = None
+        self.codebert = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"使用设备: {self.device}")
     
     def load_model(self):
-        """加载训练好的模型"""
+        """加载训练好的模型和 CodeBERT"""
+        # 加载 CodeBERT
+        print("加载 CodeBERT 模型...")
+        self.codebert = cb.CodeBert()
+        
         # 查找检查点文件
         checkpoint_files = self._find_checkpoint_files()
         
@@ -58,6 +65,43 @@ class LineVDPredictor:
         
         return checkpoint_files
     
+    def _build_graph(self, code_lines, line_numbers, ei, eo, et):
+        """构建 DGL 图并添加节点特征
+        
+        参数:
+            code_lines: 代码行列表
+            line_numbers: 行号列表
+            ei: 边的起始节点列表
+            eo: 边的结束节点列表
+            et: 边类型列表
+            
+        返回:
+            dgl.DGLGraph: 包含节点特征的图
+        """
+        # 创建 DGL 图
+        g = dgl.graph((eo, ei), num_nodes=len(code_lines))
+        
+        # 使用 CodeBERT 编码代码行
+        code_cleaned = [c.replace("\\t", "").replace("\\n", "") for c in code_lines]
+        code_embeddings = self.codebert.encode(code_cleaned).detach().cpu()
+        g.ndata["_CODEBERT"] = code_embeddings
+        
+        # 添加行号特征
+        g.ndata["_LINE"] = torch.Tensor(line_numbers).int()
+        
+        # 添加边类型特征
+        g.edata["_ETYPE"] = torch.Tensor(et).long()
+        
+        # 添加函数级别嵌入（使用整个代码的嵌入）
+        full_code = "</s> " + "\n".join(code_lines)
+        func_emb = self.codebert.encode([full_code]).detach().cpu()
+        g.ndata["_FUNC_EMB"] = func_emb.repeat((g.number_of_nodes(), 1))
+        
+        # 添加自环边
+        g = dgl.add_self_loop(g)
+        
+        return g
+    
     def predict(self, code: str, language: str = "c"):
         """对代码进行漏洞预测
         
@@ -89,25 +133,29 @@ class LineVDPredictor:
                 svdj.run_joern(temp_file_path, verbose=0)
                 print("Joern 处理完成")
             
-            g = lvd.feature_extraction(temp_file_path)
+            # 提取特征
+            code_lines, line_numbers, ei, eo, et = lvd.feature_extraction(temp_file_path)
+            
+            # 构建图
+            g = self._build_graph(code_lines, line_numbers, ei, eo, et)
             g = g.to(self.device)
             
             # 进行预测
             with torch.no_grad():
-                logits = self.model(g, test=True)
+                logits, _ = self.model(g, test=True)
             
             # 处理预测结果
             preds = logits.argmax(dim=1).cpu().numpy()
             confidence = torch.softmax(logits, dim=1).cpu().numpy()
             
             # 获取行号
-            line_numbers = g.ndata["_LINE_NUMBER"].cpu().numpy()
+            line_numbers_tensor = g.ndata["_LINE"].cpu().numpy()
             
             # 构建结果
             results = []
             vulnerable_count = 0
             
-            for line, pred, conf in zip(line_numbers, preds, confidence):
+            for line, pred, conf in zip(line_numbers_tensor, preds, confidence):
                 pred_label = "VULNERABLE" if pred == 1 else "SAFE"
                 conf_score = conf[1] if pred == 1 else conf[0]
                 
@@ -133,11 +181,18 @@ class LineVDPredictor:
             }
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             raise Exception(f"预测失败: {str(e)}")
         finally:
             # 清理临时文件
             if os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
+            # 清理 Joern 生成的文件
+            if os.path.exists(edges_file):
+                os.unlink(edges_file)
+            if os.path.exists(nodes_file):
+                os.unlink(nodes_file)
 
 # 测试代码
 if __name__ == "__main__":
@@ -146,14 +201,14 @@ if __name__ == "__main__":
     
     # 测试代码
     test_code = """
-    #include <stdio.h>
-    int main() {
-        char buffer[10];
-        gets(buffer);
-        printf("%s", buffer);
-        return 0;
-    }
-    """
+#include <stdio.h>
+int main() {
+    char buffer[10];
+    gets(buffer);
+    printf("%s", buffer);
+    return 0;
+}
+"""
     
     result = predictor.predict(test_code)
     print("预测结果:")

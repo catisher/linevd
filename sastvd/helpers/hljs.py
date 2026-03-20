@@ -87,23 +87,36 @@ def hljs(code, preds, vulns=[], style="idea", vid=None):
         >>> preds = {1: 0.5, 2: 0.3}
         >>> html = hljs(code, preds)
     """
+    # 初始化预测高亮行列表
     hl_lines = []
+    # 遍历预测结果，为每一行生成高亮配置
     for k, v in preds.items():
+        # 使用红色背景高亮，透明度根据预测分数调整
+        # 分数越高，红色越深（透明度越低）
         hl_lines.append(f'{{ start: {k}, end: {k}, color: "rgba(255, 0, 0, {v})" }}')
 
+    # 获取该样本中被移除的行（用于区分不同类型的漏洞行）
     removed = set(lines[vid]["removed"])
 
+    # 初始化真实漏洞行样式列表
     vul_lines = []
+    # 遍历真实漏洞行，为每一行生成样式
     for v in vulns:
+        # 默认使用深红色标记真实漏洞行
         color = "darkred"
+        # 如果该行是被移除的行，使用红色标记
         if int(v) in removed:
             color = "red"
             print(color)
+        # 生成CSS样式，加粗行号并设置颜色
         vstyle = f'.hljs-ln-numbers[data-line-number="{v}"] {{  font-weight: bold; color: {color}; }}'
         vul_lines.append(vstyle)
 
+    # 添加行号背景色样式，确保行号背景为白色
     vul_lines.append(".hljs-ln-numbers { background-color: white; }")
 
+    # 使用模板生成最终的HTML字符串
+    # 参数顺序：样式主题、预测高亮行配置、真实漏洞行样式、代码内容
     return html.format(style, ",".join(hl_lines), "\n".join(vul_lines), code)
 
 
@@ -123,10 +136,16 @@ def linevd_to_html(cfile, preds, vulns=[], style="idea"):
         >>> cfile = svddc.BigVulDataset.itempath(sample.id)
         >>> html = linevd_to_html(cfile, {1: 0.8, 3: 0.6})
     """
+    # 读取C文件内容
     with open(cfile, "r") as f:
         code = f.read()
+    # 调用hljs函数生成HTML，传入文件名作为vid参数
+    # Path(cfile).stem 提取文件名（不含扩展名）作为样本ID
     ret = hljs(code, preds, vulns, style, int(Path(cfile).stem))
+    # 创建可视化输出目录
     savedir = svd.get_dir(svd.outputs_dir() / "visualise_preds")
+    # 将生成的HTML保存到文件，文件名为原文件名加上.html后缀
     with open(f"{savedir / Path(cfile).name}.html", "w") as f:
         f.write(ret)
+    # 返回生成的HTML字符串
     return ret

@@ -5,24 +5,46 @@ import sastvd.helpers.joern as svdj
 import sastvd.linevd as lvd
 from graphviz import Digraph
 
+# 重新加载joern模块，确保使用最新版本
 reload(svdj)
 
 
 def get_digraph(nodes, edges, edge_label=True):
-    """Plote digraph given nodes and edges list."""
+    """根据节点和边列表绘制有向图。
+    
+    使用Graphviz的neato引擎生成代码属性图的可视化。
+    
+    Args:
+        nodes: 节点列表，每个节点包含[id, label, type]
+        edges: 边列表，每个边包含[innode, outnode, etype]
+        edge_label: 是否显示边标签，默认为True
+    
+    Returns:
+        Digraph: Graphviz有向图对象
+    """
+    # 创建有向图，使用neato引擎进行布局
     dot = Digraph(comment="Combined PDG", engine="neato")
 
+    # 为每个节点添加行号信息
     nodes = [n + [svdj.nodelabel2line(n[1])] for n in nodes]
+    # 初始化颜色映射表
     colormap = {"": "white"}
     for n in nodes:
+        # 为每种节点类型分配随机颜色
         if n[2] not in colormap:
             colormap[n[2]] = svdj.randcolor()
 
+    # 添加节点到图中
     for n in nodes:
+        # 设置节点样式：圆形、固定大小
         style = {"shape": "circle", "fixedsize": "true", "width": "0.5"}
         dot.node(str(n[0]), str(n[1]), **style)
+    
+    # 添加边到图中
     for e in edges:
+        # 默认边样式
         style = {"color": "black"}
+        # 根据边类型设置不同样式
         if e[2] == "CALL":
             style["style"] = "solid"
             style["color"] = "purple"
@@ -46,6 +68,7 @@ def get_digraph(nodes, edges, edge_label=True):
             style["style"] = "solid"
             style["color"] = "black"
         style["penwidth"] = "1"
+        # 根据edge_label参数决定是否显示边标签
         if edge_label:
             dot.edge(str(e[0]), str(e[1]), e[2], **style)
         else:
@@ -53,8 +76,10 @@ def get_digraph(nodes, edges, edge_label=True):
     return dot
 
 
+# 获取样本182352的文件路径
 _id = svddc.BigVulDataset.itempath(182352)
 
+# 行号映射表：将原始行号映射到新的行号
 lineMap = {
     1: 1,
     2: 2,
@@ -83,53 +108,65 @@ lineMap = {
 }
 
 
-# Get CPG
+# 获取代码属性图（CPG）的节点和边
 n, e = svdj.get_node_edges(_id)
+# 应用行号映射
 n.lineNumber = n.lineNumber.map(lineMap).fillna("")
 e.line_in = e.line_in.map(lineMap).fillna("")
 e.line_out = e.line_out.map(lineMap).fillna("")
 
-# Swap line numbers
+# 交换边的输入输出节点（用于调整边的方向）
 e["tmp1"] = e.line_in
 e["tmp2"] = e.line_out
 e.line_out = e.tmp1
 e.line_in = e.tmp2
 
-# Group nodes
+# 对节点进行分组（合并相同行号的节点）
 n, e = lvd.ne_groupnodes(n, e)
 
-# Reverse DDG edges for method declaration
+# 反转方法声明相关的DDG边
 alt_e = e[(e.line_out == 1) & (e.dataflow != "")].copy()
 alt_e.outnode = alt_e.innode
 alt_e.innode = 1
 e = e[e.line_out != 1]
-e = e.append(alt_e)
+# 使用pd.concat替代已弃用的append方法
+import pandas as pd
+e = pd.concat([e, alt_e], ignore_index=True)
 
-# Plot graph
+# 绘制图
+# 设置节点标签为行号
 n["node_label"] = n["lineNumber"].astype(str)
+# 移除自环边
 e = e[e.innode != e.outnode]
 
+# 为DDG边添加数据流信息
 e.etype = e.apply(
     lambda x: f"DDG: {x.dataflow}" if len(x.dataflow) > 0 else x.etype, axis=1
 )
+# 查看特定数据流的边
 e[e.dataflow == "!sig_none"]
+
+# 过滤边：只保留特定类型的边
 en = e[e.etype != "CFG"]
 en = en[en.etype != "AST"]
 en = en[en.etype != "REACHING_DEF"]
 en = en[en.etype != "DDG: <RET>"]
 en = en[en.etype != "DDG: !sig_none"]
 en = en[en.etype != "DDG: now = timespec64_to_ktime(ts64)"]
+# 合并节点信息到边
 en = en.merge(n[["id", "name", "code"]], left_on="line_in", right_on="id")
 # en = en[~((en.etype.str.contains("=")) & (~en.name.str.contains("assignment")))]
 
-# Only keep assignment DDG
+# 只保留赋值操作的DDG边
 en.name = en.name.fillna("<operator>.assignment")
 en = en[en.name == "<operator>.assignment"]
 en.dataflow = en.dataflow.fillna("")
+# 提取赋值操作的左侧变量
 en["left_assign"] = en.code.apply(lambda x: x.split("=")[0].strip())
+# 过滤：只保留数据流中包含左侧变量的边
 en = en[en.apply(lambda x: x.left_assign in x.dataflow, axis=1)]
 
-# Add CDG edges back
+# 添加CDG边回图中
 en = en[(en.etype.str.contains("DDG"))]
 en = en.append(e[e.etype == "CDG"])
 
@@ -149,8 +186,12 @@ en["tmp"] = en.innode
 en["innode"] = en.outnode
 en["outnode"] = en.tmp
 
+# 移除孤立节点
 n = svdj.drop_lone_nodes(n, en)
-n = n.append({"id": 4, "node_label": "4"}, ignore_index=1)
+# 手动添加节点4
+n = pd.concat([n, pd.DataFrame([{"id": 4, "node_label": "4"}])], ignore_index=True)
+
+# 生成最终的有向图
 dot = get_digraph(
     n[["id", "node_label"]].to_numpy().tolist(),
     en[["outnode", "innode", "etype"]].to_numpy().tolist(),

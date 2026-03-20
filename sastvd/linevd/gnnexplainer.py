@@ -39,50 +39,62 @@ class NodeExplainerModule(nn.Module):
         mask_bias=False,
     ):
         """初始化节点解释器模块。
-        
+
         参数:
             model: 要解释的图神经网络模型
             num_edges: 图中边的数量
             node_feat_dim: 节点特征的维度
-            activation: 激活函数类型，默认为'sigmoid'
-            agg_fn: 聚合函数类型，默认为'sum'
-            mask_bias: 是否为掩码添加偏置，默认为False
+            activation: 激活函数类型，可选"sigmoid"或"relu"
+            agg_fn: 聚合函数类型
+            mask_bias: 是否使用边掩码偏置
         """
         super(NodeExplainerModule, self).__init__()
+        # 保存要解释的模型
         self.model = model
-        self.model.eval()  # 设置模型为评估模式
+        # 设置模型为评估模式，冻结模型参数
+        self.model.eval()
+        # 保存边的数量
         self.num_edges = num_edges
+        # 保存节点特征维度
         self.node_feat_dim = node_feat_dim
+        # 保存激活函数类型
         self.activation = activation
+        # 保存聚合函数类型
         self.agg_fn = agg_fn
+        # 保存是否使用掩码偏置
         self.mask_bias = mask_bias
 
-        # 初始化掩码参数
+        # 初始化边掩码参数
         self.edge_mask, self.edge_mask_bias = self.create_edge_mask(self.num_edges)
+        # 初始化节点特征掩码参数
         self.node_feat_mask = self.create_node_feat_mask(self.node_feat_dim)
 
     def create_edge_mask(self, num_edges, init_strategy="normal", const=1.0):
-        """
-        根据计算图中边的数量，创建可学习的边掩码。
-        为了适应DGL，将掩码从N*N邻接矩阵转换为边的数量。
-        
+        """创建边掩码参数。
+
         参数:
             num_edges: 边的数量
-            init_strategy: 参数初始化方法，默认为'normal'
-            const: 常量初始化的值，默认为1.0
-            
+            init_strategy: 初始化策略，可选"normal"或"const"
+            const: 如果使用"const"策略，设置的常数值
+
         返回:
-            mask和mask_bias: 形状为N*1的张量
+            mask: 边掩码参数
+            mask_bias: 边掩码偏置参数（如果启用）
         """
+        # 创建可学习的边掩码参数
         mask = nn.Parameter(th.Tensor(num_edges, 1))
 
+        # 根据初始化策略初始化掩码
         if init_strategy == "normal":
+            # 使用正态分布初始化，均值为1.0
             std = nn.init.calculate_gain("relu") * math.sqrt(1.0 / num_edges)
             with th.no_grad():
                 mask.normal_(1.0, std)
         elif init_strategy == "const":
+            # 使用常数值初始化
             nn.init.constant_(mask, const)
 
+        # 如果启用了掩码偏置，创建偏置参数
         if self.mask_bias:
             mask_bias = nn.Parameter(th.Tensor(num_edges, 1))
             nn.init.constant_(mask_bias, 0.0)
@@ -92,23 +104,26 @@ class NodeExplainerModule(nn.Module):
         return mask, mask_bias
 
     def create_node_feat_mask(self, node_feat_dim, init_strategy="normal"):
-        """
-        根据计算图中节点特征的维度，创建可学习的特征掩码。
-        
+        """创建节点特征掩码参数。
+
         参数:
             node_feat_dim: 节点特征的维度
-            init_strategy: 参数初始化方法，默认为'normal'
-            
+            init_strategy: 初始化策略，可选"normal"或"constant"
+
         返回:
-            mask: 形状为N的张量
+            mask: 节点特征掩码参数
         """
+        # 创建可学习的节点特征掩码参数
         mask = nn.Parameter(th.Tensor(node_feat_dim))
 
+        # 根据初始化策略初始化掩码
         if init_strategy == "normal":
+            # 使用正态分布初始化，均值为1.0，标准差为0.1
             std = 0.1
             with th.no_grad():
                 mask.normal_(1.0, std)
         elif init_strategy == "constant":
+            # 使用常数值初始化
             with th.no_grad():
                 nn.init.constant_(mask, 0.0)
         return mask
@@ -126,11 +141,15 @@ class NodeExplainerModule(nn.Module):
         """
 
         # 步骤1: 使用内部特征掩码掩码节点特征
+        # 通过sigmoid激活函数将掩码值限制在[0,1]范围内
         new_n_feats = n_feats * self.node_feat_mask.sigmoid()
+        # 计算边掩码的激活值
         edge_mask = self.edge_mask.sigmoid()
 
         # 步骤2: 计算掩码节点特征和边后的logits
+        # 将掩码后的特征存储到图的节点数据中
         graph.ndata["_maskedfeat"] = new_n_feats
+        # 调用模型进行预测，传入边权重和特征覆盖参数
         new_logits = self.model(
             graph, test=True, e_weights=edge_mask, feat_override="_maskedfeat"
         )[0]
@@ -153,41 +172,45 @@ class NodeExplainerModule(nn.Module):
         返回:
             loss: 标量，解释器的总体损失
         """
-        # 1. 预测损失
+        # 1. 预测损失：确保掩码后的预测结果与原始预测一致
         log_logit = -F.log_softmax(pred_logits, dim=-1)
         pred_loss = th.sum(log_logit * pred_label)
 
-        # 2. 边掩码损失
+        # 2. 边掩码损失：鼓励边掩码值趋向于0（移除边）
         if self.activation == "sigmoid":
             edge_mask = th.sigmoid(self.edge_mask)
         elif self.activation == "relu":
             edge_mask = F.relu(self.edge_mask)
         else:
             raise ValueError()
+        # 使用系数g_size控制边掩码损失的权重
         edge_mask_loss = self.loss_coef["g_size"] * th.sum(edge_mask)
 
-        # 3. 边掩码熵损失
+        # 3. 边掩码熵损失：鼓励边掩码值趋向于0或1（二元化）
         edge_ent = -edge_mask * th.log(edge_mask + 1e-8) - (1 - edge_mask) * th.log(
             1 - edge_mask + 1e-8
         )
+        # 使用系数g_ent控制边掩码熵损失的权重
         edge_ent_loss = self.loss_coef["g_ent"] * th.mean(edge_ent)
 
-        # 4. 节点特征掩码损失
+        # 4. 节点特征掩码损失：鼓励节点特征掩码值趋向于0（移除特征）
         if self.activation == "sigmoid":
             node_feat_mask = th.sigmoid(self.node_feat_mask)
         elif self.activation == "relu":
             node_feat_mask = F.relu(self.node_feat_mask)
         else:
             raise ValueError()
+        # 使用系数feat_size控制节点特征掩码损失的权重
         node_feat_mask_loss = self.loss_coef["feat_size"] * th.sum(node_feat_mask)
 
-        # 5. 节点特征掩码熵损失
+        # 5. 节点特征掩码熵损失：鼓励节点特征掩码值趋向于0或1（二元化）
         node_feat_ent = -node_feat_mask * th.log(node_feat_mask + 1e-8) - (
             1 - node_feat_mask
         ) * th.log(1 - node_feat_mask + 1e-8)
+        # 使用系数feat_ent控制节点特征掩码熵损失的权重
         node_feat_ent_loss = self.loss_coef["feat_ent"] * th.mean(node_feat_ent)
 
-        # 总损失
+        # 总损失：所有损失项的加权和
         total_loss = (
             pred_loss
             + edge_mask_loss
@@ -219,8 +242,11 @@ class GNNExplainerLit(pl.LightningModule):
         )
         # 获取模型原始预测结果
         self.model_logits = model(g, test=True)[0]
+        # 将logits转换为one-hot标签
         self.model_predict = F.one_hot(th.argmax(self.model_logits, dim=-1), 2)
+        # 提取节点的CodeBERT特征
         self.sub_feats = g.ndata["_CODEBERT"]
+        # 保存要解释的图
         self.g = g
 
     def forward(self, g):
@@ -245,8 +271,11 @@ class GNNExplainerLit(pl.LightningModule):
         返回:
             loss: 训练损失
         """
+        # 执行前向传播
         exp_logits = self(batch)[0]
+        # 计算损失
         loss = self.explainer._loss(exp_logits, self.model_predict)
+        # 记录训练损失
         self.log("train_loss", loss, on_epoch=True, prog_bar=False)
         return loss
 
@@ -277,21 +306,26 @@ def get_node_importances(model, g):
     返回:
         节点重要性分数张量
     """
-    # 初始化GNNExplainer训练器
+    # 初始化GNNExplainer训练器，将模型和图移动到GPU
     gnne = GNNExplainerLit(model.cuda(), g.to("cuda"))
+    # 创建PyTorch Lightning训练器
     trainer = pl.Trainer(
         gpus=1, max_epochs=20, default_root_dir="/tmp/", log_every_n_steps=1
     )
-    # 训练解释器
+    # 训练解释器，学习最优的边和特征掩码
     trainer.fit(gnne)
-    # 获取边权重
+    # 获取训练后的边权重（经过sigmoid激活）
     edge_weights = gnne.explainer.edge_mask.sigmoid().detach()
-    # 将边权重聚合为节点重要性
+    # 初始化节点重要性分数为2.0
     g.ndata["line_importance"] = th.ones(g.number_of_nodes(), device="cuda") * 2
+    # 将边权重存储到图的边数据中
     g.edata["edge_mask"] = edge_weights.cuda()
     # 使用DGL的消息传递机制聚合边权重到节点
+    # u_mul_e: 源节点数据乘以边数据
+    # mean: 对消息取平均值
     g.update_all(
         dgl.function.u_mul_e("line_importance", "edge_mask", "m"),
         dgl.function.mean("m", "line_importance"),
     )
+    # 返回节点重要性分数
     return g.ndata["line_importance"].squeeze()

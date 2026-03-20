@@ -3,12 +3,14 @@ import sys
 import tempfile
 import torch
 from glob import glob
+from pathlib import Path
 
 # 添加项目根目录到路径
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
 import sastvd.linevd as lvd
 import sastvd as svd
+import sastvd.helpers.joern as svdj
 
 class LineVDPredictor:
     """LineVD 模型预测器"""
@@ -77,6 +79,16 @@ class LineVDPredictor:
         try:
             # 处理代码，生成图结构
             print(f"处理代码文件: {temp_file_path}")
+            
+            # 检查 Joern 输出文件是否存在，如果不存在则运行 Joern
+            edges_file = temp_file_path + ".edges.json"
+            nodes_file = temp_file_path + ".nodes.json"
+            
+            if not (os.path.exists(edges_file) and os.path.exists(nodes_file)):
+                print("运行 Joern 生成代码属性图...")
+                svdj.run_joern(temp_file_path, verbose=0)
+                print("Joern 处理完成")
+            
             g = lvd.feature_extraction(temp_file_path)
             g = g.to(self.device)
             

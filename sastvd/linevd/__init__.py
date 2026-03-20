@@ -34,86 +34,168 @@ from tqdm import tqdm
 def ne_groupnodes(n, e):
     """将具有相同行号的节点分组。
     
+    该函数将代码属性图(CPG)中属于同一源代码行的多个AST节点合并为一个节点。
+    在Joern提取的CPG中，一行代码可能对应多个AST节点（如声明、表达式等），
+    但在行级漏洞检测中，我们需要以代码行为单位进行分析，因此需要合并节点。
+    
     参数:
-        n: 包含节点信息的DataFrame，必须包含lineNumber和code列
-        e: 包含边信息的DataFrame，必须包含line_in和line_out列
+        n: 包含节点信息的DataFrame，必须包含以下列：
+            - lineNumber: 源代码行号
+            - code: 节点对应的代码文本
+            - id: 节点唯一标识符
+        e: 包含边信息的DataFrame，必须包含以下列：
+            - line_in: 边的起始节点行号
+            - line_out: 边的结束节点行号
+            - etype: 边类型（如AST、CFG、DDG等）
     
     返回:
-        nl: 分组后的节点DataFrame，每个行号保留一个节点
+        nl: 分组后的节点DataFrame，每个行号只保留一个代表性节点
         el: 调整后的边DataFrame，使用行号作为节点标识符
+    
+    示例:
+        >>> nodes, edges = svdj.get_node_edges("code.c")
+        >>> grouped_nodes, grouped_edges = ne_groupnodes(nodes, edges)
+        >>> print(f"原始节点数: {len(nodes)}, 分组后节点数: {len(grouped_nodes)}")
     """
+    # 步骤1: 过滤掉没有行号的节点
+    # 某些AST节点（如文件节点、方法节点）可能没有具体的行号
     nl = n[n.lineNumber != ""].copy()
+    
+    # 将行号从字符串转换为整数，便于后续排序和比较
     nl.lineNumber = nl.lineNumber.astype(int)
+    
+    # 步骤2: 按代码长度降序排序
+    # 同一行可能有多个节点，保留代码最长的节点作为代表
+    # 这样可以保留更多的语义信息
     nl = nl.sort_values(by="code", key=lambda x: x.str.len(), ascending=False)
+    
+    # 步骤3: 按行号分组，每组只保留第一个节点（代码最长的）
+    # groupby后每组取head(1)实现去重
     nl = nl.groupby("lineNumber").head(1)
+    
+    # 步骤4: 复制边DataFrame，准备调整边的节点引用
     el = e.copy()
+    
+    # 将边的节点引用从节点ID改为行号
+    # line_in 和 line_out 是预先计算好的行号映射
     el.innode = el.line_in
     el.outnode = el.line_out
+    
+    # 步骤5: 将节点的ID设置为行号
+    # 这样节点ID和行号一致，便于后续处理
     nl.id = nl.lineNumber
+    
+    # 删除没有边连接的孤立节点
     nl = svdj.drop_lone_nodes(nl, el)
+    
+    # 步骤6: 清理边数据
+    # 删除重复的边（相同的起点、终点和边类型）
     el = el.drop_duplicates(subset=["innode", "outnode", "etype"])
+    
+    # 过滤掉节点引用不是浮点数的边（可能是无效数据）
     el = el[el.innode.apply(lambda x: isinstance(x, float))]
     el = el[el.outnode.apply(lambda x: isinstance(x, float))]
+    
+    # 将边的节点引用转换为整数类型
     el.innode = el.innode.astype(int)
     el.outnode = el.outnode.astype(int)
+    
     return nl, el
 
 
 def feature_extraction(_id, graph_type="cfgcdg", return_nodes=False):
     """提取代码图的基本特征。
     
+    该函数从代码文件中提取代码属性图(CPG)，并将其转换为适合图神经网络处理的格式。
+    主要步骤包括：获取节点和边、按行号分组节点、过滤孤立节点、映射索引和边类型。
+    
     参数:
-        _id: 代码项的路径或标识符
-        graph_type: 图类型，如"cfgcdg"（控制流图+数据依赖图）或"pdg"（程序依赖图）
-        return_nodes: 是否仅返回节点信息（用于实证评估）
+        _id: 代码项的路径或标识符，指向要分析的代码文件
+        graph_type: 图类型，默认为"cfgcdg"（控制流图+数据依赖图）
+            - "cfgcdg": 控制流图 + 数据依赖图
+            - "pdg": 程序依赖图
+            - "pdg+raw": 程序依赖图 + 原始代码（不添加函数名前缀）
+        return_nodes: 是否仅返回节点信息，用于实证评估时获取节点元数据
     
     返回:
         如果return_nodes=True: 返回包含节点信息的DataFrame
         否则: 返回元组(code, lineno, ei, eo, et)，分别表示
-            code: 代码行列表
-            lineno: 行号列表
-            ei: 边的起始节点列表
-            eo: 边的结束节点列表
-            et: 边类型列表
+            code: 代码行列表（每行代码的文本内容）
+            lineno: 行号列表（代码行对应的源代码行号）
+            ei: 边的起始节点列表（边的源节点索引）
+            eo: 边的结束节点列表（边的目标节点索引）
+            et: 边类型列表（边的类型编码）
+    
+    示例:
+        >>> code, lineno, ei, eo, et = feature_extraction("/path/to/code.c")
+        >>> print(f"代码行数: {len(code)}, 边数: {len(ei)}")
     """
-    # Get CPG
+    # 步骤1: 获取代码属性图(CPG)的节点和边
+    # svdj.get_node_edges 从Joern生成的JSON文件中读取节点和边信息
     n, e = svdj.get_node_edges(_id)
+    
+    # 步骤2: 按行号分组节点
+    # 同一行代码可能对应多个AST节点，这里将它们合并为一个节点
+    # 保留代码最长的节点作为代表
     n, e = ne_groupnodes(n, e)
 
-    # Return node metadata
+    # 如果只需要节点元数据（用于实证评估），直接返回节点DataFrame
     if return_nodes:
         return n
 
-    # Filter nodes
+    # 步骤3: 根据图类型过滤边
+    # graph_type可能包含"+"，如"pdg+raw"，取第一部分作为图类型
+    # svdj.rdg 函数根据图类型筛选边（如只保留CFG边或PDG边）
     e = svdj.rdg(e, graph_type.split("+")[0])
+    
+    # 删除没有边连接的孤立节点
     n = svdj.drop_lone_nodes(n, e)
 
-    # Plot graph
+    # 可选：绘制图结构（已注释）
     # svdj.plot_graph_node_edge_df(n, e)
 
-    # Map line numbers to indexing
+    # 步骤4: 将行号映射为连续索引
+    # 重置索引，创建从0开始的连续索引
     n = n.reset_index(drop=True).reset_index()
+    
+    # 创建行号到索引的映射字典
+    # 键为原始行号，值为新的连续索引
     iddict = pd.Series(n.index.values, index=n.id).to_dict()
+    
+    # 将边中的节点标识符从行号映射为索引
     e.innode = e.innode.map(iddict)
     e.outnode = e.outnode.map(iddict)
 
-    # Map edge types
+    # 步骤5: 将边类型映射为整数编码
+    # 获取所有边类型列表
     etypes = e.etype.tolist()
+    
+    # 创建边类型到整数的映射（按字母顺序排序后编号）
+    # 例如: {"AST": 0, "CFG": 1, "DDG": 2}
     d = dict([(y, x) for x, y in enumerate(sorted(set(etypes)))])
+    
+    # 将边类型转换为整数编码
     etypes = [d[i] for i in etypes]
 
-    # Append function name to code
+    # 步骤6: 构建代码文本表示
+    # 如果图类型不包含"+raw"，则在代码前添加函数名和节点名
     if "+raw" not in graph_type:
         try:
+            # 获取第1行的节点名称作为函数名
             func_name = n[n.lineNumber == 1].name.item()
         except:
+            # 如果获取失败（如没有第1行），使用空字符串
             print(_id)
             func_name = ""
+        # 构建代码格式: 函数名 + 节点名 + </s> + 原始代码
+        # </s> 是分隔符，用于CodeBERT等预训练模型
         n.code = func_name + " " + n.name + " " + "</s>" + " " + n.code
     else:
+        # 对于"+raw"类型，只添加分隔符
         n.code = "</s>" + " " + n.code
 
-    # Return plain-text code, line number list, innodes, outnodes
+    # 步骤7: 返回处理后的特征
+    # 返回代码列表、行号列表、边的起始节点、结束节点和边类型
     return n.code.tolist(), n.id.tolist(), e.innode.tolist(), e.outnode.tolist(), etypes
 
 

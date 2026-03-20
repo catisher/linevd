@@ -111,6 +111,11 @@
                   </div>
                 </el-timeline-item>
               </el-timeline>
+              
+              <div v-if="vulnerabilities.length === 0" class="no-vulnerabilities">
+                <el-icon size="24" color="#67c23a"><CheckFilled /></el-icon>
+                <p>未检测到漏洞</p>
+              </div>
             </div>
           </div>
         </el-card>
@@ -132,7 +137,7 @@ export default {
 void vulnerable_function(char *input) {
     char buffer[10];
     strcpy(buffer, input);  // 高危：缓冲区溢出
-    printf("%s\\n", buffer);
+    printf("%s\n", buffer);
 }
 
 int main() {
@@ -194,12 +199,46 @@ int main() {
     async analyzeCode() {
       this.analyzing = true
       try {
-        const response = await axios.post('http://localhost:8000/analyze', {
+        const response = await axios.post('http://localhost:8000/predict', {
           code: this.code,
-          filename: 'test.c'
+          language: 'c'
         })
         
-        this.vulnerabilities = response.data.vulnerabilities
+        console.log('后端响应:', response.data)
+        
+        // 处理后端返回的数据
+        const apiResults = response.data.results
+        const vulnerabilities = []
+        
+        // 将后端结果转换为前端需要的格式
+        apiResults.forEach(result => {
+          if (result.prediction === 'VULNERABLE') {
+            // 从代码中提取对应行的代码片段
+            const codeLines = this.code.split('\n')
+            const lineIndex = result.line - 1  // 数组索引从0开始
+            const codeSnippet = lineIndex >= 0 && lineIndex < codeLines.length 
+              ? codeLines[lineIndex].trim() 
+              : ''
+            
+            // 根据置信度确定严重程度
+            let severity = 'Low'
+            if (result.confidence > 0.8) {
+              severity = 'High'
+            } else if (result.confidence > 0.6) {
+              severity = 'Medium'
+            }
+            
+            vulnerabilities.push({
+              line: result.line,
+              severity: severity,
+              message: `可能存在漏洞`,
+              confidence: result.confidence,
+              code_snippet: codeSnippet
+            })
+          }
+        })
+        
+        this.vulnerabilities = vulnerabilities
         this.highRiskCount = this.vulnerabilities.filter(v => v.severity === 'High').length
         this.mediumRiskCount = this.vulnerabilities.filter(v => v.severity === 'Medium').length
         this.lowRiskCount = this.vulnerabilities.filter(v => v.severity === 'Low').length
@@ -208,6 +247,7 @@ int main() {
         this.$message.success('分析完成！')
       } catch (error) {
         this.$message.error('分析失败：' + error.message)
+        console.error('API 调用失败:', error)
         
         // 模拟数据（用于演示）
         this.vulnerabilities = [
@@ -382,5 +422,16 @@ int main() {
   padding: 5px;
   border-radius: 3px;
   border-left: 3px solid #409eff;
+}
+
+.no-vulnerabilities {
+  text-align: center;
+  padding: 40px 20px;
+  color: #67c23a;
+}
+
+.no-vulnerabilities p {
+  margin-top: 10px;
+  font-size: 14px;
 }
 </style>

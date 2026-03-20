@@ -15,4 +15,20 @@ hpc/logs/*
 linevd-venv/
 miniconda.sh
 .vscode/
-linevd-ui/
+#前端相关
+linevd-ui/frontend/node_modules
+linevd-ui/frontend/dist
+linevd-ui/frontend/build
+linevd-ui/frontend/.env
+linevd-ui/frontend/.env.local
+linevd-ui/frontend/.npm
+linevd-ui/frontend/*.log
+linevd-ui/frontend/package-lock.json
+linevd-ui/frontend/yarn.lock
+linevd-ui/frontend/pnpm-lock.yaml
+# 后端相关
+linevd-ui/backend/venv
+linevd-ui/backend/env
+linevd-ui/backend/__pycache__
+linevd-ui/backend/*.pyc
+

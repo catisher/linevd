@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from schemas import CodeRequest, PredictionResponse
+from schemas.__init__ import CodeRequest, PredictionResponse
 from models.predictor import LineVDPredictor
 
 # 创建 FastAPI 应用

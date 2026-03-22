@@ -151,28 +151,46 @@ class LineVDPredictor:
             # 获取行号
             line_numbers_tensor = g.ndata["_LINE"].cpu().numpy()
             
-            # 构建结果
-            results = []
-            vulnerable_count = 0
+            # 获取原始代码的实际行数
+            with open(temp_file_path, 'r', encoding='utf-8') as f:
+                actual_code_lines = f.readlines()
+            actual_total_lines = len(actual_code_lines)
             
+            # 创建行号到预测结果的映射
+            line_prediction_map = {}
             for line, pred, conf in zip(line_numbers_tensor, preds, confidence):
                 pred_label = "VULNERABLE" if pred == 1 else "SAFE"
                 conf_score = conf[1] if pred == 1 else conf[0]
-                
-                results.append({
+                line_prediction_map[int(line)] = {
                     "line": int(line),
                     "prediction": pred_label,
                     "confidence": float(conf_score)
-                })
-                
-                if pred == 1:
-                    vulnerable_count += 1
+                }
+            
+            # 构建完整的结果列表，包含所有代码行
+            results = []
+            vulnerable_count = 0
+            
+            for line_num in range(1, actual_total_lines + 1):
+                if line_num in line_prediction_map:
+                    # 使用 Joern 提取的预测结果
+                    result = line_prediction_map[line_num]
+                    results.append(result)
+                    if result["prediction"] == "VULNERABLE":
+                        vulnerable_count += 1
+                else:
+                    # 对于没有 AST 节点的行，默认为 SAFE
+                    results.append({
+                        "line": line_num,
+                        "prediction": "SAFE",
+                        "confidence": 1.0
+                    })
             
             # 构建摘要
             summary = {
-                "total_lines": len(results),
+                "total_lines": actual_total_lines,
                 "vulnerable_lines": vulnerable_count,
-                "safe_lines": len(results) - vulnerable_count
+                "safe_lines": actual_total_lines - vulnerable_count
             }
             
             return {

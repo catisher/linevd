@@ -124,20 +124,20 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
+// 导入 Element Plus 的消息提示组件
+import { ElMessage } from 'element-plus'
 
-export default {
-  name: 'Analysis',
-  data() {
-    return {
-      code: `#include <stdio.h>
+// 响应式数据：代码内容，初始值为示例 C 代码
+const code = ref(`#include <stdio.h>
 #include <string.h>
 
 void vulnerable_function(char *input) {
     char buffer[10];
     strcpy(buffer, input);  // 高危：缓冲区溢出
-    printf("%s\n", buffer);
+    printf("%s\\n", buffer);
 }
 
 int main() {
@@ -145,135 +145,203 @@ int main() {
     gets(user_input);  // 高危：不安全的输入
     vulnerable_function(user_input);
     return 0;
-}`,
-      lineCount: 0,
-      analyzing: false,
-      analysisComplete: false,
-      vulnerabilities: [],
-      highRiskCount: 0,
-      mediumRiskCount: 0,
-      lowRiskCount: 0
-    }
-  },
-  mounted() {
-    this.updateLineCount()
-  },
-  methods: {
-    updateLineCount() {
-      this.lineCount = this.code.split('\n').length
-    },
-    syncScroll(e) {
-      // 同步行号滚动
-      const lineNumbers = this.$el.querySelector('.line-numbers')
-      if (lineNumbers) {
-        lineNumbers.scrollTop = e.target.scrollTop
-      }
-    },
-    isVulnerableLine(line) {
-      return this.vulnerabilities.some(v => v.line === line)
-    },
-    getSeverityType(severity) {
-      const map = {
-        'High': 'danger',
-        'Medium': 'warning',
-        'Low': 'info'
-      }
-      return map[severity] || 'info'
-    },
-    getSeverityIcon(severity) {
-      const map = {
-        'High': 'CircleCloseFilled',
-        'Medium': 'WarningFilled',
-        'Low': 'InfoFilled'
-      }
-      return map[severity] || 'InfoFilled'
-    },
-    handleFileChange(file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        this.code = e.target.result
-        this.updateLineCount()
-      }
-      reader.readAsText(file.raw)
-    },
-    async analyzeCode() {
-      this.analyzing = true
-      try {
-        const response = await axios.post('http://localhost:8000/predict', {
-          code: this.code,
-          language: 'c'
+}`)
+
+// 响应式数据：代码行数
+const lineCount = ref(0)
+// 响应式数据：是否正在分析中
+const analyzing = ref(false)
+// 响应式数据：分析是否完成
+const analysisComplete = ref(false)
+// 响应式数据：漏洞列表
+const vulnerabilities = ref([])
+// 响应式数据：高危漏洞数量
+const highRiskCount = ref(0)
+// 响应式数据：中危漏洞数量
+const mediumRiskCount = ref(0)
+// 响应式数据：低危漏洞数量
+const lowRiskCount = ref(0)
+// 响应式数据：代码编辑器引用
+const codeEditor = ref(null)
+
+// 组件挂载后执行
+onMounted(() => {
+  // 初始化代码行数
+  updateLineCount()
+})
+
+/**
+ * 更新代码行数
+ * 用于同步显示行号
+ */
+const updateLineCount = () => {
+  lineCount.value = code.value.split('\n').length
+}
+
+/**
+ * 同步行号滚动
+ * @param {Event} e - 滚动事件对象
+ */
+const syncScroll = (e) => {
+  // 获取行号容器元素
+  const lineNumbers = document.querySelector('.line-numbers')
+  if (lineNumbers) {
+    // 同步滚动位置
+    lineNumbers.scrollTop = e.target.scrollTop
+  }
+}
+
+/**
+ * 检查某行是否为漏洞行
+ * @param {number} line - 行号
+ * @returns {boolean} - 是否为漏洞行
+ */
+const isVulnerableLine = (line) => {
+  return vulnerabilities.value.some(v => v.line === line)
+}
+
+/**
+ * 获取严重程度对应的 Element Plus 类型
+ * @param {string} severity - 严重程度 (High/Medium/Low)
+ * @returns {string} - Element Plus 标签类型
+ */
+const getSeverityType = (severity) => {
+  const map = {
+    'High': 'danger',    // 高危对应 danger 类型
+    'Medium': 'warning', // 中危对应 warning 类型
+    'Low': 'info'        // 低危对应 info 类型
+  }
+  return map[severity] || 'info' // 默认为 info 类型
+}
+
+/**
+ * 获取严重程度对应的 Element Plus 图标
+ * @param {string} severity - 严重程度 (High/Medium/Low)
+ * @returns {string} - Element Plus 图标名称
+ */
+const getSeverityIcon = (severity) => {
+  const map = {
+    'High': 'CircleCloseFilled',   // 高危对应关闭圆圈图标
+    'Medium': 'WarningFilled',     // 中危对应警告图标
+    'Low': 'InfoFilled'            // 低危对应信息图标
+  }
+  return map[severity] || 'InfoFilled' // 默认为信息图标
+}
+
+/**
+ * 处理文件上传
+ * @param {Object} file - 上传的文件对象
+ */
+const handleFileChange = (file) => {
+  // 创建文件读取器
+  const reader = new FileReader()
+  // 文件读取完成回调
+  reader.onload = (e) => {
+    // 更新代码内容
+    code.value = e.target.result
+    // 更新代码行数
+    updateLineCount()
+  }
+  // 以文本形式读取文件
+  reader.readAsText(file.raw)
+}
+
+/**
+ * 分析代码漏洞
+ */
+const analyzeCode = async () => {
+  // 开始分析，设置 analyzing 为 true
+  analyzing.value = true
+  try {
+    // 发送 POST 请求到后端 API
+    const response = await axios.post('http://localhost:8000/predict', {
+      code: code.value,       // 代码内容
+      language: 'c'           // 语言类型
+    })
+    
+    // 打印后端响应（用于调试）
+    console.log('后端响应:', response.data)
+    
+    // 提取后端返回的结果数据
+    const apiResults = response.data.results
+    // 临时存储漏洞列表
+    const vulnList = []
+    
+    // 遍历后端返回的每个结果
+    apiResults.forEach(result => {
+      // 只处理预测为 VULNERABLE 的结果
+      if (result.prediction === 'VULNERABLE') {
+        // 提取代码行
+        const codeLines = code.value.split('\n')
+        // 计算数组索引（行号从 1 开始，数组从 0 开始）
+        const lineIndex = result.line - 1
+        // 获取对应行的代码片段
+        const codeSnippet = lineIndex >= 0 && lineIndex < codeLines.length 
+          ? codeLines[lineIndex].trim() 
+          : ''
+        
+        // 根据置信度确定严重程度
+        let severity = 'Low'
+        if (result.confidence > 0.8) {
+          severity = 'High'  // 置信度 > 0.8 为高危
+        } else if (result.confidence > 0.6) {
+          severity = 'Medium' // 置信度 > 0.6 为中危
+        }
+        
+        // 添加到漏洞列表
+        vulnList.push({
+          line: result.line,           // 行号
+          severity: severity,          // 严重程度
+          message: `可能存在漏洞`,     // 漏洞描述
+          confidence: result.confidence, // 置信度
+          code_snippet: codeSnippet     // 代码片段
         })
-        
-        console.log('后端响应:', response.data)
-        
-        // 处理后端返回的数据
-        const apiResults = response.data.results
-        const vulnerabilities = []
-        
-        // 将后端结果转换为前端需要的格式
-        apiResults.forEach(result => {
-          if (result.prediction === 'VULNERABLE') {
-            // 从代码中提取对应行的代码片段
-            const codeLines = this.code.split('\n')
-            const lineIndex = result.line - 1  // 数组索引从0开始
-            const codeSnippet = lineIndex >= 0 && lineIndex < codeLines.length 
-              ? codeLines[lineIndex].trim() 
-              : ''
-            
-            // 根据置信度确定严重程度
-            let severity = 'Low'
-            if (result.confidence > 0.8) {
-              severity = 'High'
-            } else if (result.confidence > 0.6) {
-              severity = 'Medium'
-            }
-            
-            vulnerabilities.push({
-              line: result.line,
-              severity: severity,
-              message: `可能存在漏洞`,
-              confidence: result.confidence,
-              code_snippet: codeSnippet
-            })
-          }
-        })
-        
-        this.vulnerabilities = vulnerabilities
-        this.highRiskCount = this.vulnerabilities.filter(v => v.severity === 'High').length
-        this.mediumRiskCount = this.vulnerabilities.filter(v => v.severity === 'Medium').length
-        this.lowRiskCount = this.vulnerabilities.filter(v => v.severity === 'Low').length
-        this.analysisComplete = true
-        
-        this.$message.success('分析完成！')
-      } catch (error) {
-        this.$message.error('分析失败：' + error.message)
-        console.error('API 调用失败:', error)
-        
-        // 模拟数据（用于演示）
-        this.vulnerabilities = [
-          {
-            line: 6,
-            severity: 'High',
-            message: 'Buffer overflow vulnerability: strcpy(buffer, input)',
-            confidence: 0.95,
-            code_snippet: 'strcpy(buffer, input);'
-          },
-          {
-            line: 13,
-            severity: 'High',
-            message: 'Unsafe input function: gets(user_input)',
-            confidence: 0.92,
-            code_snippet: 'gets(user_input);'
-          }
-        ]
-        this.highRiskCount = 2
-        this.mediumRiskCount = 0
-        this.lowRiskCount = 0
-        this.analysisComplete = true
-      } finally {
-        this.analyzing = false
       }
-    }
+    })
+    
+    // 更新漏洞列表
+    vulnerabilities.value = vulnList
+    // 计算各严重程度的漏洞数量
+    highRiskCount.value = vulnerabilities.value.filter(v => v.severity === 'High').length
+    mediumRiskCount.value = vulnerabilities.value.filter(v => v.severity === 'Medium').length
+    lowRiskCount.value = vulnerabilities.value.filter(v => v.severity === 'Low').length
+    // 标记分析完成
+    analysisComplete.value = true
+    
+    // 显示成功消息
+    ElMessage.success('分析完成！')
+  } catch (error) {
+    // 显示错误消息
+    ElMessage.error('分析失败：' + error.message)
+    // 打印错误信息（用于调试）
+    console.error('API 调用失败:', error)
+    
+    // 使用模拟数据（用于演示）
+    vulnerabilities.value = [
+      {
+        line: 6,
+        severity: 'High',
+        message: 'Buffer overflow vulnerability: strcpy(buffer, input)',
+        confidence: 0.95,
+        code_snippet: 'strcpy(buffer, input);'
+      },
+      {
+        line: 13,
+        severity: 'High',
+        message: 'Unsafe input function: gets(user_input)',
+        confidence: 0.92,
+        code_snippet: 'gets(user_input);'
+      }
+    ]
+    // 更新模拟数据的统计信息
+    highRiskCount.value = 2
+    mediumRiskCount.value = 0
+    lowRiskCount.value = 0
+    // 标记分析完成
+    analysisComplete.value = true
+  } finally {
+    // 无论成功失败，都设置 analyzing 为 false
+    analyzing.value = false
   }
 }
 </script>

@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>历史分析记录</span>
-          <el-button type="primary" @click="$router.push('/analysis')">
+          <el-button type="primary" @click="goToAnalysis">
             <el-icon><Plus /></el-icon>
             新建分析
           </el-button>
@@ -35,41 +35,43 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Results',
-  data() {
-    return {
-      analysisHistory: [
-        {
-          id: 1,
-          filename: 'test.c',
-          date: '2026-03-08 14:30:00',
-          totalLines: 15,
-          vulnerabilityCount: 2
-        },
-        {
-          id: 2,
-          filename: 'vulnerable.c',
-          date: '2026-03-08 15:45:00',
-          totalLines: 32,
-          vulnerabilityCount: 5
-        },
-        {
-          id: 3,
-          filename: 'secure.c',
-          date: '2026-03-08 16:20:00',
-          totalLines: 28,
-          vulnerabilityCount: 0
-        }
-      ]
-    }
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+
+const router = useRouter()
+
+const analysisHistory = ref([
+  {
+    id: 1,
+    filename: 'test.c',
+    date: '2026-03-08 14:30:00',
+    totalLines: 15,
+    vulnerabilityCount: 2
   },
-  methods: {
-    viewDetail(row) {
-      this.$message.info(`查看分析详情: ${row.filename}`)
-    }
+  {
+    id: 2,
+    filename: 'vulnerable.c',
+    date: '2026-03-08 15:45:00',
+    totalLines: 32,
+    vulnerabilityCount: 5
+  },
+  {
+    id: 3,
+    filename: 'secure.c',
+    date: '2026-03-08 16:20:00',
+    totalLines: 28,
+    vulnerabilityCount: 0
   }
+])
+
+const viewDetail = (row) => {
+  ElMessage.info(`查看分析详情: ${row.filename}`)
+}
+
+const goToAnalysis = () => {
+  router.push('/analysis')
 }
 </script>
 

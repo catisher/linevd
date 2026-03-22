@@ -38,7 +38,7 @@
             <el-button 
               type="primary" 
               size="large" 
-              @click="$router.push('/analysis')"
+              @click="goToAnalysis"
               class="start-btn"
             >
               <el-icon><ArrowRight /></el-icon>
@@ -48,27 +48,16 @@
         </el-card>
       </el-col>
     </el-row>
-    
-    <el-row :gutter="20" class="stats-row">
-      <el-col :span="6">
-        <el-statistic title="已分析文件" :value="128" />
-      </el-col>
-      <el-col :span="6">
-        <el-statistic title="发现漏洞" :value="45" />
-      </el-col>
-      <el-col :span="6">
-        <el-statistic title="检测准确率" :value="92.5" suffix="%" />
-      </el-col>
-      <el-col :span="6">
-        <el-statistic title="平均耗时" :value="2.3" suffix="s" />
-      </el-col>
-    </el-row>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Home'
+<script setup>
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+const goToAnalysis = () => {
+  router.push('/analysis')
 }
 </script>
 

@@ -52,6 +52,36 @@ class GraphCodeBert:
         # 将模型移动到指定设备
         self.model.to(self._dev)
 
+    def generate_structure_info(self, code):
+        """为代码生成结构信息
+        
+        基于代码的缩进和结构生成简单的结构信息
+        
+        Args:
+            code: 代码字符串
+            
+        Returns:
+            str: 结构信息字符串
+        """
+        lines = code.split('\n')
+        structure = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # 提取关键字和结构信息
+            if line.startswith('if') or line.startswith('for') or line.startswith('while') or line.startswith('do'):
+                structure.append('<control>')
+            elif line.startswith('return'):
+                structure.append('<return>')
+            elif '=' in line and not line.startswith('//'):
+                structure.append('<assignment>')
+            elif line.startswith('{') or line.startswith('}'):
+                structure.append('<bracket>')
+            else:
+                structure.append('<statement>')
+        return ' '.join(structure)
+
     def encode(self, code_sents: list, structure_sents: list = None):
         """将代码片段列表编码为 GraphCodeBERT 向量表示
         

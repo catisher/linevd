@@ -247,15 +247,15 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             if "_CODEBERT" in g.ndata:
                 # 如果使用 CodeBERT 特征，移除其他特征以节省内存
                 if self.feat == "codebert":
-                    for i in ["_GLOVE", "_DOC2VEC", "_RANDFEAT"]:
+                    for i in ["_GLOVE", "_DOC2VEC", "_RANDFEAT","_GRAPHCODEBERT"]:
                         g.ndata.pop(i, None)
                 # 如果使用 GloVe 特征，移除其他特征
                 if self.feat == "glove":
-                    for i in ["_CODEBERT", "_DOC2VEC", "_RANDFEAT"]:
+                    for i in ["_CODEBERT", "_DOC2VEC", "_RANDFEAT","_GRAPHCODEBERT"]:
                         g.ndata.pop(i, None)
                 # 如果使用 Doc2Vec 特征，移除其他特征
                 if self.feat == "doc2vec":
-                    for i in ["_CODEBERT", "_GLOVE", "_RANDFEAT"]:
+                    for i in ["_CODEBERT", "_GLOVE", "_RANDFEAT","_GRAPHCODEBERT"]:
                         g.ndata.pop(i, None)
                 # 返回处理后的图
                 return g
@@ -334,15 +334,15 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             if "_GRAPHCODEBERT" in g.ndata:
                 # 如果使用 GraphCodeBERT 特征，移除其他特征以节省内存
                 if self.feat == "graphcodebert":
-                    for i in ["_GLOVE", "_DOC2VEC", "_RANDFEAT"]:
+                    for i in ["_GLOVE", "_DOC2VEC", "_RANDFEAT","_CODEBERT"]:
                         g.ndata.pop(i, None)
                 # 如果使用 GloVe 特征，移除其他特征
                 if self.feat == "glove":
-                    for i in ["_GRAPHCODEBERT", "_DOC2VEC", "_RANDFEAT"]:
+                    for i in ["_GRAPHCODEBERT", "_DOC2VEC", "_RANDFEAT","_CODEBERT"]:
                         g.ndata.pop(i, None)
                 # 如果使用 Doc2Vec 特征，移除其他特征
                 if self.feat == "doc2vec":
-                    for i in ["_GRAPHCODEBERT", "_GLOVE", "_RANDFEAT"]:
+                    for i in ["_GRAPHCODEBERT", "_GLOVE", "_RANDFEAT","_CODEBERT"]:
                         g.ndata.pop(i, None)
                 # 返回处理后的图
                 return g
@@ -365,20 +365,21 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         # 生成 Doc2Vec 嵌入并存储到节点数据中
         g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
         # 如果提供了 GraphCodeBERT 模型，则生成 GraphCodeBERT 嵌入
+
         if graphcodebert:
-            # 清理代码文本中的制表符和换行符
-            code = [c.replace("\t", "").replace("\n", "") for c in code]
-            # 为每行代码生成结构信息
+            code = [c.replace("\t", " ").replace("\n", " ").strip() for c in code]
             structure = [graphcodebert.generate_structure_info(c) for c in code]
-            # 将代码分成批次，每批 128 行
-            chunked_batches = svd.chunks(code, 128)
-            # 对每个批次进行 GraphCodeBERT 编码
+
+            BATCH_SIZE = 128
+            # 安全分批：代码和结构使用完全相同的索引
+            code_batches = [code[i:i+BATCH_SIZE] for i in range(0, len(code), BATCH_SIZE)]
+            struct_batches = [structure[i:i+BATCH_SIZE] for i in range(0, len(structure), BATCH_SIZE)]
+
             graphcodebert_features = []
-            for batch in chunked_batches:
-                batch_structure = structure[:128]
-                structure = structure[128:]
-                graphcodebert_features.append(graphcodebert.encode(batch, batch_structure).detach().cpu())
-            # 将所有批次的特征连接起来，存储到节点数据中
+            for cb, sb in zip(code_batches, struct_batches):
+                feat = graphcodebert.encode(cb, sb).detach().cpu()
+                graphcodebert_features.append(feat)
+
             g.ndata["_GRAPHCODEBERT"] = th.cat(graphcodebert_features)
 
         # 生成随机特征，维度为 100
@@ -562,7 +563,7 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
             nsampling_hops: 邻居采样的跳数
             gtype: 图类型，如"cfgcdg"或"pdg"
             splits: 数据集分割方式，如"default"或"crossproject"
-            feat: 使用的特征类型，如"all"、"codebert"、"glove"或"doc2vec"
+            feat: 使用的特征类型，如"all"、"codebert"、"graphcodebert"、"glove"或"doc2vec"
         """
         super().__init__()
         dataargs = {"sample": sample, "gtype": gtype, "splits": splits, "feat": feat}
@@ -582,9 +583,10 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
         self.test.cache_graphcodebert_method_level(graphcodebert)
         
         # 缓存所有数据项
-        self.train.cache_items(codebert)
-        self.val.cache_items(codebert)
-        self.test.cache_items(codebert)
+        self.train.cache_items(codebert, graphcodebert)
+        self.val.cache_items(codebert, graphcodebert)
+        self.test.cache_items(codebert, graphcodebert)
+
         self.batch_size = batch_size
         self.nsampling = nsampling
         self.nsampling_hops = nsampling_hops
@@ -680,10 +682,6 @@ class LitGNN(pl.LightningModule):
             embtype: 嵌入类型，如"codebert"、"glove"或"doc2vec"
             embfeat: 嵌入特征维度（用于遗留目的）
             num_heads: GAT注意力头的数量
-            lr: 学习率
-            hdropout: 隐藏层的dropout率
-            mlpdropout: MLP层的dropout率
-            gatdropout: GAT层的dropout率
             methodlevel: 是否使用方法级别的表示
             nsampling: 是否使用邻居采样
             model: 模型类型，如"gat2layer"（2层GAT）或"gat1layer"（1层GAT）
@@ -703,9 +701,11 @@ class LitGNN(pl.LightningModule):
         if self.hparams.embtype == "codebert":
             self.hparams.embfeat = 768
             self.EMBED = "_CODEBERT"
+            self.FUNC_EMB = "_FUNC_EMB"
         if self.hparams.embtype == "graphcodebert":
             self.hparams.embfeat = 768
             self.EMBED = "_GRAPHCODEBERT"
+            self.FUNC_EMB = "_GRAPH_FUNC_EMB"
         if self.hparams.embtype == "glove":
             self.hparams.embfeat = 200
             self.EMBED = "_GLOVE"
@@ -815,7 +815,7 @@ class LitGNN(pl.LightningModule):
         # 处理邻居采样的情况（训练时使用）
             # 目标节点的嵌入特征
             hdst = g[2][-1].dstdata[self.EMBED]
-            h_func = g[2][-1].dstdata["_FUNC_EMB"] # 目标节点的函数嵌入
+            h_func = g[2][-1].dstdata[self.FUNC_EMB] # 目标节点的函数嵌入
             g2 = g[2][1] # 采样后的子图（第1层）
             g = g[2][0] # 采样后的子图（第0层）
             if "gat2layer" in self.hparams.model:
@@ -831,7 +831,7 @@ class LitGNN(pl.LightningModule):
             if len(feat_override) > 0:
                 # 如果指定了特征覆盖，使用指定的特征
                 h = g.ndata[feat_override]
-            h_func = g.ndata["_FUNC_EMB"]  # 所有节点的函数嵌入
+            h_func = g.ndata[self.FUNC_EMB]  # 所有节点的函数嵌入
             hdst = h # 目标节点特征就是所有节点特征
 
         if self.random:

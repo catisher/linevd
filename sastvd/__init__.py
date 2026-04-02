@@ -318,15 +318,6 @@ def dfmp(df, function, columns=None, ordr=True, workers=6, cs=10, desc="Run: "):
 
 def chunks(lst, n):
     """将列表分割成指定大小的块
-    
-    用于分批处理大型列表
-    
-    Args:
-        lst: 要分割的列表
-        n: 每个块的大小
-    
-    Yields:
-        list: 分割后的子列表
     """
     for i in range(0, len(lst), n):
         yield lst[i : i + n]

@@ -52,18 +52,31 @@ def helper(row):
 
 
 def get_dep_add_lines_bigvul(cache=True):
-    """Cache dependent added lines for bigvul."""
+    """获取 BigVul 数据集的依赖添加行信息，并支持缓存。
+    该函数用于提取每个漏洞样本中被删除的行（removed）和依赖添加的行（depadd），
+    并将结果缓存到文件，避免重复计算。
+    """
+    # 构建缓存文件路径，存储在 processed/bigvul/eval/statement_labels.pkl
     saved = svd.get_dir(svd.processed_dir() / "bigvul/eval") / "statement_labels.pkl"
+    # 如果缓存文件存在且允许使用缓存，直接加载缓存数据
     if os.path.exists(saved) and cache:
         with open(saved, "rb") as f:
             return pkl.load(f)
+    # 加载完整的 BigVul 数据集
     df = svdd.bigvul()
+    # 只保留有漏洞的样本（vul=1），无漏洞样本不需要依赖添加行信息
     df = df[df.vul == 1]
+    # 设置进度条描述文字
     desc = "Getting dependent-added lines: "
+    # 并行处理每个样本，调用 helper 函数提取依赖添加行
+    # 传入的列包括：id（样本ID）、removed（删除的行）、added（添加的行）
     lines_dict = svd.dfmp(df, helper, ["id", "removed", "added"], ordr=False, desc=desc)
+    # 将结果转换为普通字典格式
     lines_dict = dict(lines_dict)
+    # 将处理结果保存到缓存文件，供下次直接使用
     with open(saved, "wb") as f:
         pkl.dump(lines_dict, f)
+    # 返回包含依赖添加行信息的字典
     return lines_dict
 
 

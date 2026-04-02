@@ -1,6 +1,19 @@
 """RQ1研究问题实验脚本。
 
 该脚本用于运行RQ1（Research Question 1）的实验，使用Ray Tune进行LineVD模型的超参数调优。
+究问题 ：不同代码嵌入类型对漏洞检测性能的影响
+
+对比内容 ：
+
+- 嵌入类型 ： codebert vs glove vs doc2vec
+- 模型类型 ：仅 mlponly （多层感知机，不使用GNN）
+- 图类型 ： pdg+raw （程序依赖图+原始特征）
+- 多任务类型 ：仅 line （行级预测）
+消融目的 ：
+
+- 比较不同代码嵌入表示的效果
+- 验证 CodeBERT 相比传统词向量的优势
+- 在不使用图神经网络的情况下，纯粹比较嵌入质量
 """
 
 import os

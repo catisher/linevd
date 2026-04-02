@@ -9,22 +9,10 @@ from tsne_torch import TorchTSNE as TSNE
 
 class CodeBert:
     """CodeBert 代码嵌入模型类
-
-    该类封装了 Microsoft CodeBert 预训练模型，用于将代码片段编码为向量表示
-    
-    Example:
-    cb = CodeBert()
-    sent = ["int myfunciscool(float b) { return 1; }", "int main"]
-    ret = cb.encode(sent)
-    ret.shape
-    >>> torch.Size([2, 768])
     """
 
     def __init__(self):
         """初始化 CodeBert 模型
-        
-        优先从本地加载模型，如果本地不存在则从 Hugging Face 下载并缓存
-        自动选择可用的设备（GPU或CPU）
         """
         # 检查本地是否存在 CodeBert 模型
         codebert_base_path = svd.external_dir() / "codebert-base"
@@ -53,12 +41,6 @@ class CodeBert:
 
     def encode(self, sents: list):
         """将代码片段列表编码为 CodeBert 向量表示
-        
-        Args:
-            sents: 代码片段字符串列表
-            
-        Returns:
-            torch.Tensor: 形状为 [batch_size, 768] 的代码向量
         """
         # 准备输入文本
         tokens = [i for i in sents]
@@ -87,13 +69,6 @@ def plot_embeddings(embeddings, words):
     Args:
         embeddings: 代码向量嵌入，形状为 [n, 768]
         words: 与嵌入对应的代码片段列表
-    
-    Example:
-        import sastvd.helpers.datasets as svdd
-        cb = CodeBert()
-        df = svdd.bigvul()
-        sent = " ".join(df.sample(5).before.tolist()).split()
-        plot_embeddings(cb.encode(sent), sent)
     """
     # 初始化 t-SNE 模型，降至 2 维空间
     tsne = TSNE(n_components=2, n_iter=2000, verbose=True)

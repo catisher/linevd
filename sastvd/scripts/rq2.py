@@ -2,6 +2,19 @@
 
 该脚本用于运行RQ2（Research Question 2）的实验，使用Ray Tune进行LineVD模型的超参数调优，
 重点研究不同图神经网络架构和图类型的效果。
+究问题 ：不同图神经网络架构和图类型对漏洞检测性能的影响
+
+对比内容 ：
+
+- 模型类型 ： gat1layer vs gat2layer vs mlponly
+  - 1层GAT vs 2层GAT vs 仅MLP
+- GNN类型 ： gat vs gcn
+  - 图注意力网络 vs 图卷积网络
+- 图类型 ： pdg vs pdg+raw vs cfgcdg vs cfgcdg+raw
+  - 程序依赖图 vs 控制流+数据流图
+  - 是否包含原始代码特征
+- 嵌入类型 ：固定为 codebert
+- 多任务类型 ：固定为 linemethod （行级+方法级）
 """
 
 import os

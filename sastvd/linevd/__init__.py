@@ -11,6 +11,7 @@ import pandas as pd
 import pytorch_lightning as pl
 import sastvd as svd
 import sastvd.codebert as cb
+import sastvd.graphcodebert as gcb
 import sastvd.helpers.dclass as svddc
 import sastvd.helpers.doc2vec as svdd2v
 import sastvd.helpers.glove as svdg
@@ -37,25 +38,9 @@ def ne_groupnodes(n, e):
     该函数将代码属性图(CPG)中属于同一源代码行的多个AST节点合并为一个节点。
     在Joern提取的CPG中，一行代码可能对应多个AST节点（如声明、表达式等），
     但在行级漏洞检测中，我们需要以代码行为单位进行分析，因此需要合并节点。
-    
-    参数:
-        n: 包含节点信息的DataFrame，必须包含以下列：
-            - lineNumber: 源代码行号
-            - code: 节点对应的代码文本
-            - id: 节点唯一标识符
-        e: 包含边信息的DataFrame，必须包含以下列：
-            - line_in: 边的起始节点行号
-            - line_out: 边的结束节点行号
-            - etype: 边类型（如AST、CFG、DDG等）
-    
     返回:
         nl: 分组后的节点DataFrame，每个行号只保留一个代表性节点
         el: 调整后的边DataFrame，使用行号作为节点标识符
-    
-    示例:
-        >>> nodes, edges = svdj.get_node_edges("code.c")
-        >>> grouped_nodes, grouped_edges = ne_groupnodes(nodes, edges)
-        >>> print(f"原始节点数: {len(nodes)}, 分组后节点数: {len(grouped_nodes)}")
     """
     # 步骤1: 过滤掉没有行号的节点
     # 某些AST节点（如文件节点、方法节点）可能没有具体的行号
@@ -108,15 +93,6 @@ def feature_extraction(_id, graph_type="cfgcdg", return_nodes=False):
     
     该函数从代码文件中提取代码属性图(CPG)，并将其转换为适合图神经网络处理的格式。
     主要步骤包括：获取节点和边、按行号分组节点、过滤孤立节点、映射索引和边类型。
-    
-    参数:
-        _id: 代码项的路径或标识符，指向要分析的代码文件
-        graph_type: 图类型，默认为"cfgcdg"（控制流图+数据依赖图）
-            - "cfgcdg": 控制流图 + 数据依赖图
-            - "pdg": 程序依赖图
-            - "pdg+raw": 程序依赖图 + 原始代码（不添加函数名前缀）
-        return_nodes: 是否仅返回节点信息，用于实证评估时获取节点元数据
-    
     返回:
         如果return_nodes=True: 返回包含节点信息的DataFrame
         否则: 返回元组(code, lineno, ei, eo, et)，分别表示
@@ -125,10 +101,7 @@ def feature_extraction(_id, graph_type="cfgcdg", return_nodes=False):
             ei: 边的起始节点列表（边的源节点索引）
             eo: 边的结束节点列表（边的目标节点索引）
             et: 边类型列表（边的类型编码）
-    
-    示例:
-        >>> code, lineno, ei, eo, et = feature_extraction("/path/to/code.c")
-        >>> print(f"代码行数: {len(code)}, 边数: {len(ei)}")
+
     """
     # 步骤1: 获取代码属性图(CPG)的节点和边
     # svdj.get_node_edges 从Joern生成的JSON文件中读取节点和边信息
@@ -201,9 +174,9 @@ def feature_extraction(_id, graph_type="cfgcdg", return_nodes=False):
 
 # %%
 class BigVulDatasetLineVD(svddc.BigVulDataset):
-    """LineVD版本的BigVul数据集实现。
-    
+    """LineVD版本的BigVul数据集实现。    
     该类继承自BigVulDataset，用于为LineVD模型准备代码图数据。
+    主要负责图数据的处理，包括提取代码属性图(CPG)、映射索引、构建图结构等。
     支持多种图类型（如pdg、cfgcdg）和特征类型（如codebert、glove、doc2vec）。
     """
 
@@ -212,109 +185,263 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         
         参数:
             gtype: 图类型，如"pdg"（程序依赖图）或"cfgcdg"（控制流图+数据依赖图）
-            feat: 使用的特征类型，如"all"（所有特征）、"codebert"、"glove"或"doc2vec"
+            feat: 使用的特征类型，如"all"（所有特征）、"codebert"（CodeBERT特征）、"graphcodebert"（Graphcodebert特征）、"glove"或"doc2vec"
             **kwargs: 传递给父类的其他参数
         """
+        # 调用父类 BigVulDataset 的初始化方法，传递所有参数
         super(BigVulDatasetLineVD, self).__init__(**kwargs)
+        # 从 IVDetect 获取依赖添加行的数据，包含漏洞行和依赖添加行信息
         lines = ivde.get_dep_add_lines_bigvul()
+        # 处理漏洞行数据：将 removed（漏洞行）和 depadd（依赖添加行）合并为一个集合
+        # 使用 set 去重，确保每个行号只出现一次
         lines = {k: set(list(v["removed"]) + v["depadd"]) for k, v in lines.items()}
+        # 将处理后的漏洞行数据保存为实例属性，供后续使用
         self.lines = lines
+        # 保存图类型（如 "pdg"、"cfgcdg" 等），用于后续图构建
         self.graph_type = gtype
+        # 构建 GloVe 词向量文件的路径
         glove_path = svd.processed_dir() / "bigvul/glove_False/vectors.txt"
+        # 加载 GloVe 词向量字典，返回词到向量的映射字典
         self.glove_dict, _ = svdg.glove_dict(glove_path)
+        # 初始化 Doc2Vec 模型，用于生成文档级嵌入
         self.d2v = svdd2v.D2V(svd.processed_dir() / "bigvul/d2v_False")
+        # 保存特征类型（如 "all"、"codebert"、"graphcodebert"、""glove"、"doc2vec"），控制使用哪种特征
         self.feat = feat
 
-    def item(self, _id, codebert=None):
+    def item(self, _id, codebert=None, graphcodebert=None):
         """获取并缓存指定ID的代码图数据项。
-        
-        参数:
-            _id: 代码项的ID
-            codebert: CodeBERT模型实例，用于生成代码嵌入
-        
-        返回:
-            dgl.DGLGraph: 包含节点特征和标签的代码图
         """
+        if codebert :
+            g = self.item_codebert(_id)
+            return g 
+        elif graphcodebert :
+            g= self.item_graphcodebert(_id)
+            return g
+        else:
+            raise ValueError("codebert or graphcodebert must be provided")
+
+    
+    def item_codebert(self, _id, codebert):
+        """缓存单个数据项的代码图。
+        """
+        """获取并缓存指定ID的代码图数据项。
+        """
+        # 构建缓存目录路径，包含图类型信息
         savedir = svd.get_dir(
             svd.cache_dir() / f"bigvul_linevd_codebert_{self.graph_type}"
         ) / str(_id)
+        # 检查缓存目录是否存在，如果存在则直接加载缓存的图
         if os.path.exists(savedir):
+            # 从缓存目录加载图数据
             g = load_graphs(str(savedir))[0][0]
+            # 注释掉的代码：将函数级漏洞标签复制到所有节点
             # g.ndata["_FVULN"] = g.ndata["_VULN"].max().repeat((g.number_of_nodes()))
+            # 注释掉的代码：移除 SAST 工具的标签
             # if "_SASTRATS" in g.ndata:
             #     g.ndata.pop("_SASTRATS")
             #     g.ndata.pop("_SASTCPP")
             #     g.ndata.pop("_SASTFF")
             #     g.ndata.pop("_GLOVE")
             #     g.ndata.pop("_DOC2VEC")
+            # 检查图中是否包含 CodeBERT 嵌入
             if "_CODEBERT" in g.ndata:
+                # 如果使用 CodeBERT 特征，移除其他特征以节省内存
                 if self.feat == "codebert":
                     for i in ["_GLOVE", "_DOC2VEC", "_RANDFEAT"]:
                         g.ndata.pop(i, None)
+                # 如果使用 GloVe 特征，移除其他特征
                 if self.feat == "glove":
                     for i in ["_CODEBERT", "_DOC2VEC", "_RANDFEAT"]:
                         g.ndata.pop(i, None)
+                # 如果使用 Doc2Vec 特征，移除其他特征
                 if self.feat == "doc2vec":
                     for i in ["_CODEBERT", "_GLOVE", "_RANDFEAT"]:
                         g.ndata.pop(i, None)
+                # 返回处理后的图
                 return g
+        # 如果缓存不存在，则进行特征提取
         code, lineno, ei, eo, et = feature_extraction(
             svddc.BigVulDataset.itempath(_id), self.graph_type
         )
+        # 根据漏洞行号列表生成漏洞标签
         if _id in self.lines:
             vuln = [1 if i in self.lines[_id] else 0 for i in lineno]
         else:
+            # 如果没有漏洞行号，所有行都标记为安全
             vuln = [0 for _ in lineno]
+        # 创建 DGL 图对象，使用边索引构建图
         g = dgl.graph((eo, ei))
+        # 生成 GloVe 词向量嵌入
         gembeds = th.Tensor(svdg.get_embeddings_list(code, self.glove_dict, 200))
+        # 将 GloVe 嵌入存储到图的节点数据中
         g.ndata["_GLOVE"] = gembeds
+        # 生成 Doc2Vec 嵌入并存储到节点数据中
         g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
+        # 如果提供了 CodeBERT 模型，则生成 CodeBERT 嵌入
         if codebert:
+            # 清理代码文本中的制表符和换行符
             code = [c.replace("\\t", "").replace("\\n", "") for c in code]
+            # 将代码分成批次，每批 128 行
             chunked_batches = svd.chunks(code, 128)
+            # 对每个批次进行 CodeBERT 编码，并移到 CPU
             features = [codebert.encode(c).detach().cpu() for c in chunked_batches]
+            # 将所有批次的特征连接起来，存储到节点数据中
             g.ndata["_CODEBERT"] = th.cat(features)
+
+        # 生成随机特征，维度为 100
         g.ndata["_RANDFEAT"] = th.rand(size=(g.number_of_nodes(), 100))
+        # 存储行号信息
         g.ndata["_LINE"] = th.Tensor(lineno).int()
+        # 存储漏洞标签
         g.ndata["_VULN"] = th.Tensor(vuln).float()
 
-        # Get SAST labels
+        # 获取 SAST（静态应用安全测试）标签
         s = sast.get_sast_lines(svd.processed_dir() / f"bigvul/before/{_id}.c.sast.pkl")
+        # 生成 RATS 工具的标签
         rats = [1 if i in s["rats"] else 0 for i in g.ndata["_LINE"]]
+        # 生成 cppcheck 工具的标签
         cppcheck = [1 if i in s["cppcheck"] else 0 for i in g.ndata["_LINE"]]
+        # 生成 flawfinder 工具的标签
         flawfinder = [1 if i in s["flawfinder"] else 0 for i in g.ndata["_LINE"]]
+        # 存储 RATS 标签到节点数据中
         g.ndata["_SASTRATS"] = th.tensor(rats).long()
+        # 存储 cppcheck 标签到节点数据中
         g.ndata["_SASTCPP"] = th.tensor(cppcheck).long()
+        # 存储 flawfinder 标签到节点数据中
         g.ndata["_SASTFF"] = th.tensor(flawfinder).long()
 
+        # 从行级标签倒推函数级标签，将函数级漏洞标签复制到所有节点
         g.ndata["_FVULN"] = g.ndata["_VULN"].max().repeat((g.number_of_nodes()))
+        # 存储边类型信息
         g.edata["_ETYPE"] = th.Tensor(et).long()
+        # 构建方法级 CodeBERT 嵌入的文件路径
         emb_path = svd.cache_dir() / f"codebert_method_level/{_id}.pt"
+        # 加载方法级嵌入并复制到所有节点
         g.ndata["_FUNC_EMB"] = th.load(emb_path, weights_only=True).repeat((g.number_of_nodes(), 1))
-        g = dgl.add_self_loop(g)
-        save_graphs(str(savedir), [g])
-        return g
-
-    def cache_items(self, codebert):
-        """缓存所有数据项的代码图。
         
-        参数:
-            codebert: CodeBERT模型实例，用于生成代码嵌入
+    def item_graphcodebert(self, _id, graphcodebert):
+        """缓存单个数据项的 GraphCodeBERT 代码图。
+        """
+        # 构建缓存目录路径，包含图类型信息
+        savedir = svd.get_dir(
+            svd.cache_dir() / f"bigvul_linevd_graphcodebert_{self.graph_type}"
+        ) / str(_id)
+        # 检查缓存目录是否存在，如果存在则直接加载缓存的图
+        if os.path.exists(savedir):
+            # 从缓存目录加载图数据
+            g = load_graphs(str(savedir))[0][0]
+            # 检查图中是否包含 GraphCodeBERT 嵌入
+            if "_GRAPHCODEBERT" in g.ndata:
+                # 如果使用 GraphCodeBERT 特征，移除其他特征以节省内存
+                if self.feat == "graphcodebert":
+                    for i in ["_GLOVE", "_DOC2VEC", "_RANDFEAT"]:
+                        g.ndata.pop(i, None)
+                # 如果使用 GloVe 特征，移除其他特征
+                if self.feat == "glove":
+                    for i in ["_GRAPHCODEBERT", "_DOC2VEC", "_RANDFEAT"]:
+                        g.ndata.pop(i, None)
+                # 如果使用 Doc2Vec 特征，移除其他特征
+                if self.feat == "doc2vec":
+                    for i in ["_GRAPHCODEBERT", "_GLOVE", "_RANDFEAT"]:
+                        g.ndata.pop(i, None)
+                # 返回处理后的图
+                return g
+        # 如果缓存不存在，则进行特征提取
+        code, lineno, ei, eo, et = feature_extraction(
+            svddc.BigVulDataset.itempath(_id), self.graph_type
+        )
+        # 根据漏洞行号列表生成漏洞标签
+        if _id in self.lines:
+            vuln = [1 if i in self.lines[_id] else 0 for i in lineno]
+        else:
+            # 如果没有漏洞行号，所有行都标记为安全
+            vuln = [0 for _ in lineno]
+        # 创建 DGL 图对象，使用边索引构建图
+        g = dgl.graph((eo, ei))
+        # 生成 GloVe 词向量嵌入
+        gembeds = th.Tensor(svdg.get_embeddings_list(code, self.glove_dict, 200))
+        # 将 GloVe 嵌入存储到图的节点数据中
+        g.ndata["_GLOVE"] = gembeds
+        # 生成 Doc2Vec 嵌入并存储到节点数据中
+        g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
+        # 如果提供了 GraphCodeBERT 模型，则生成 GraphCodeBERT 嵌入
+        if graphcodebert:
+            # 清理代码文本中的制表符和换行符
+            code = [c.replace("\t", "").replace("\n", "") for c in code]
+            # 为每行代码生成结构信息
+            structure = [graphcodebert.generate_structure_info(c) for c in code]
+            # 将代码分成批次，每批 128 行
+            chunked_batches = svd.chunks(code, 128)
+            # 对每个批次进行 GraphCodeBERT 编码
+            graphcodebert_features = []
+            for batch in chunked_batches:
+                batch_structure = structure[:128]
+                structure = structure[128:]
+                graphcodebert_features.append(graphcodebert.encode(batch, batch_structure).detach().cpu())
+            # 将所有批次的特征连接起来，存储到节点数据中
+            g.ndata["_GRAPHCODEBERT"] = th.cat(graphcodebert_features)
+
+        # 生成随机特征，维度为 100
+        g.ndata["_RANDFEAT"] = th.rand(size=(g.number_of_nodes(), 100))
+        # 存储行号信息
+        g.ndata["_LINE"] = th.Tensor(lineno).int()
+        # 存储漏洞标签
+        g.ndata["_VULN"] = th.Tensor(vuln).float()
+
+        # 获取 SAST（静态应用安全测试）标签
+        s = sast.get_sast_lines(svd.processed_dir() / f"bigvul/before/{_id}.c.sast.pkl")
+        # 生成 RATS 工具的标签
+        rats = [1 if i in s["rats"] else 0 for i in g.ndata["_LINE"]]
+        # 生成 cppcheck 工具的标签
+        cppcheck = [1 if i in s["cppcheck"] else 0 for i in g.ndata["_LINE"]]
+        # 生成 flawfinder 工具的标签
+        flawfinder = [1 if i in s["flawfinder"] else 0 for i in g.ndata["_LINE"]]
+        # 存储 RATS 标签到节点数据中
+        g.ndata["_SASTRATS"] = th.tensor(rats).long()
+        # 存储 cppcheck 标签到节点数据中
+        g.ndata["_SASTCPP"] = th.tensor(cppcheck).long()
+        # 存储 flawfinder 标签到节点数据中
+        g.ndata["_SASTFF"] = th.tensor(flawfinder).long()
+
+        # 从行级标签倒推函数级标签，将函数级漏洞标签复制到所有节点
+        g.ndata["_FVULN"] = g.ndata["_VULN"].max().repeat((g.number_of_nodes()))
+        # 存储边类型信息
+        g.edata["_ETYPE"] = th.Tensor(et).long()
+        # 构建方法级 GraphCodeBERT 嵌入的文件路径
+        graph_emb_path = svd.cache_dir() / f"graphcodebert_method_level/{_id}.pt"
+        # 加载方法级嵌入并复制到所有节点
+        g.ndata["_GRAPH_FUNC_EMB"] = th.load(graph_emb_path, weights_only=True).repeat((g.number_of_nodes(), 1))
+
+        # 为图添加自环边
+        g = dgl.add_self_loop(g)
+        # 将处理后的图保存到缓存目录
+        save_graphs(str(savedir), [g])
+        # 返回图对象
+        return g
+    
+      
+
+    def cache_items(self, codebert , graphcodebert):
+        """缓存所有数据项的代码图。
         """
         for i in tqdm(self.df.sample(len(self.df)).id.tolist()):
             try:
-                self.item(i, codebert)
+                self.item_codebert(i, codebert)
+                self.item_graphcodebert(i, graphcodebert)
             except Exception as E:
                 print(E)
 
     def cache_codebert_method_level(self, codebert):
-        """Cache method-level embeddings using Codebert.
-
-        ONLY NEEDS TO BE RUN ONCE.
+        """缓存所有数据项的方法级CodeBERT嵌入。
+        就是直接对_id文件所对应的代码进行编码，生成方法级的CodeBERT嵌入向量。
         """
         # 获取缓存目录，用于存储CodeBERT嵌入
+        # 对应文件在item方法中生成
         savedir = svd.get_dir(svd.cache_dir() / "codebert_method_level")
         # 从缓存目录中读取已处理的文件，提取ID
+        # glob(str(savedir / "*"))  作用 ：获取缓存目录中的所有文件路径
+        # i.split("/")  作用 ：按斜杠 / 分割路径字符串，获取最后一个元素（文件名）
+        # i.split(".")[0]  作用 ：将文件名中的扩展名（.pt）去掉，保留ID
         done = [int(i.split("/")[-1].split(".")[0]) for i in glob(str(savedir / "*"))]
         # 将已处理的ID转换为集合，以便快速查找
         done = set(done)
@@ -344,17 +471,76 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
                 # 将每个样本的嵌入保存到文件，文件名使用ID
                 th.save(embedded[i], savedir / f"{batch_ids[i]}.pt")
 
+    def cache_graphcodebert_method_level(self, codebert):
+        # 获取缓存目录，用于存储GraphCodeBERT嵌入
+        savedir = svd.get_dir(svd.cache_dir() / "graphcodebert_method_level")
+        # 从缓存目录中读取已处理的文件，提取ID
+        done = [int(i.split("/")[-1].split(".")[0]) for i in glob(str(savedir / "*"))]
+        # 将已处理的ID转换为集合，以便快速查找
+        done = set(done)
+        # 将数据分为每批128个样本
+        batches = svd.chunks((range(len(self.df))), 64)
+        
+        # 遍历每个批次，使用tqdm显示处理进度
+        for idx_batch in tqdm(batches):
+            # 从DataFrame中获取当前批次的文本数据（before列）
+            batch_texts = self.df.iloc[idx_batch[0] : idx_batch[-1] + 1].before.tolist()
+            # 从DataFrame中获取当前批次的ID
+            batch_ids = self.df.iloc[idx_batch[0] : idx_batch[-1] + 1].id.tolist()
+            # 检查当前批次的所有ID是否都已处理过
+            if set(batch_ids).issubset(done):
+                # 如果已处理，跳过当前批次
+                continue
+            # 在每个文本前添加结束标记</s>，这是GraphCodeBERT的输入格式要求
+            texts = ["</s> " + ct for ct in batch_texts]
+            # 为每个文本生成结构信息
+            structures = []
+            for text in batch_texts:
+                lines = text.split('\n')
+                structure = []
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith('if') or line.startswith('for') or line.startswith('while') or line.startswith('do'):
+                        structure.append('<control>')
+                    elif line.startswith('return'):
+                        structure.append('<return>')
+                    elif '=' in line and not line.startswith('//'):
+                        structure.append('<assignment>')
+                    elif line.startswith('{') or line.startswith('}'):
+                        structure.append('<bracket>')
+                    else:
+                        structure.append('<statement>')
+                structures.append(' '.join(structure))
+            # 使用GraphCodeBERT编码文本，生成嵌入向量，然后将结果从GPU移至CPU
+            embedded = codebert.encode(texts, structures).detach().cpu()
+            # 确保文本数量和ID数量一致
+            assert len(batch_texts) == len(batch_ids)
+            # 遍历每个样本
+            for i in range(len(batch_texts)):
+                # 将每个样本的嵌入保存到文件，文件名使用ID
+                th.save(embedded[i], savedir / f"{batch_ids[i]}.pt")
+
     def __getitem__(self, idx):
         """Override getitem."""
-        return self.item(self.idx2id[idx])
+        _id = self.idx2id[idx]
+    
+        if self.feat == "codebert":
+            return self.item_codebert(_id)
+        elif self.feat == "graphcodebert":
+            return self.item_graphcodebert(_id)
+        else:
+            # 默认使用 codebert 路径
+            return self.item_codebert(_id)
+        #return self.item(self.idx2id[idx])
 
 
 class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
-    """BigVul数据集的PyTorch Lightning数据模块。
-    
-    该类用于为LineVD模型提供数据加载功能，支持批处理、采样和多进程数据加载。
-    """
-
+    '''
+    缓存数据，包括CodeBERT和GraphCodeBERT的嵌入向量
+    配置各种加载器，包括训练集、验证集和测试集的加载器
+    '''
     def __init__(
         self,
         batch_size: int = 32,
@@ -383,27 +569,32 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
         self.train = BigVulDatasetLineVD(partition="train", **dataargs)
         self.val = BigVulDatasetLineVD(partition="val", **dataargs)
         self.test = BigVulDatasetLineVD(partition="test", **dataargs)
+        # 初始化 CodeBERT 模型并缓存方法级嵌入
         codebert = cb.CodeBert()
         self.train.cache_codebert_method_level(codebert)
         self.val.cache_codebert_method_level(codebert)
         self.test.cache_codebert_method_level(codebert)
+        
+        # 初始化 GraphCodeBERT 模型并缓存方法级嵌入
+        graphcodebert = gcb.GraphCodeBert()
+        self.train.cache_graphcodebert_method_level(graphcodebert)
+        self.val.cache_graphcodebert_method_level(graphcodebert)
+        self.test.cache_graphcodebert_method_level(graphcodebert)
+        
+        # 缓存所有数据项
         self.train.cache_items(codebert)
         self.val.cache_items(codebert)
         self.test.cache_items(codebert)
         self.batch_size = batch_size
         self.nsampling = nsampling
         self.nsampling_hops = nsampling_hops
+        self.feat = feat
 
     def node_dl(self, g, shuffle=False):
-        """返回节点数据加载器。
-        
-        参数:
-            g: 输入图
-            shuffle: 是否打乱数据
-        
-        返回:
-            dgl.dataloading.NodeDataLoader: 节点级别的数据加载器
-        """
+        # 处理邻居采样时做的封装
+        # MultiLayerFullNeighborSampler 是 DGL 提供的采样器，用于图神经网络训练
+        # self.nsampling_hops: 采样跳数，控制采样多少层的邻居
+        # 例如：如果设置为 2，则采样 2 层邻居（直接邻居 + 邻居的邻居）
         sampler = dgl.dataloading.MultiLayerFullNeighborSampler(self.nsampling_hops)
         return dgl.dataloading.NodeDataLoader(
             g,
@@ -422,8 +613,9 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
             图数据加载器，支持批量加载训练数据
         """
         if self.nsampling:
-            g = next(iter(GraphDataLoader(self.train, batch_size=len(self.train))))
-            return self.node_dl(g, shuffle=True)
+            #g = next(iter(GraphDataLoader(self.train, batch_size=len(self.train))))
+            #return self.node_dl(g, shuffle=True)
+            return self.node_dl(self.train, shuffle=True, batch_size=self.batch_size)
         return GraphDataLoader(self.train, shuffle=True, batch_size=self.batch_size)
 
     def val_dataloader(self):
@@ -433,8 +625,10 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
             图数据加载器，支持批量加载验证数据
         """
         if self.nsampling:
-            g = next(iter(GraphDataLoader(self.val, batch_size=len(self.val))))
-            return self.node_dl(g)
+            #g = next(iter(GraphDataLoader(self.val, batch_size=len(self.val))))
+            #return self.node_dl(g)
+            # 使用分批加载，避免一次性加载全部数据
+            return self.node_dl(self.val, shuffle=True, batch_size=self.batch_size)
         return GraphDataLoader(self.val, batch_size=self.batch_size)
 
     def val_graph_dataloader(self):
@@ -457,9 +651,6 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
 # %%
 class LitGNN(pl.LightningModule):
     """LineVD模型的PyTorch Lightning实现。
-    
-    该类包含了基于图神经网络的漏洞检测模型，支持多种GNN架构（如GAT、GCN）和嵌入类型（如CodeBERT、GloVe、Doc2Vec）。
-    实现了行级和方法级的漏洞检测功能，支持多任务学习。
     """
 
     def __init__(
@@ -504,14 +695,17 @@ class LitGNN(pl.LightningModule):
             scea: SCE损失函数的α参数
         """
         super().__init__()
-        self.lr = lr
-        self.random = random
-        self.save_hyperparameters()
+        self.lr = lr  # 保存学习率
+        self.random = random  # 保存是否使用随机权重的标志
+        self.save_hyperparameters()  # 保存超参数到检查点
 
-        # Set params based on embedding type
+        # 根据嵌入类型设置参数
         if self.hparams.embtype == "codebert":
             self.hparams.embfeat = 768
             self.EMBED = "_CODEBERT"
+        if self.hparams.embtype == "graphcodebert":
+            self.hparams.embfeat = 768
+            self.EMBED = "_GRAPHCODEBERT"
         if self.hparams.embtype == "glove":
             self.hparams.embfeat = 200
             self.EMBED = "_GLOVE"
@@ -521,9 +715,11 @@ class LitGNN(pl.LightningModule):
 
         # Loss
         if self.hparams.loss == "sce":
+            # 使用对称交叉熵损失
             self.loss = svdloss.SCELoss(self.hparams.scea, 1 - self.hparams.scea)
             self.loss_f = th.nn.CrossEntropyLoss()
         else:
+            # 使用标准交叉熵损失，设置类别权重
             self.loss = th.nn.CrossEntropyLoss(
                 #weight=th.Tensor([1, self.hparams.stmtweight])
                 weight=th.Tensor([1, self.hparams.stmtweight]).cuda()
@@ -531,16 +727,26 @@ class LitGNN(pl.LightningModule):
             self.loss_f = th.nn.CrossEntropyLoss()
 
         # 评估指标配置
-        self.accuracy = torchmetrics.Accuracy(task="binary")
-        self.auroc = torchmetrics.AUROC(task="binary")
-        self.mcc = torchmetrics.MatthewsCorrCoef(task="binary", num_classes=2)
+        self.accuracy = torchmetrics.Accuracy(task="binary") # 准确率指标
+        self.auroc = torchmetrics.AUROC(task="binary") # AUC-ROC 指标
+        self.mcc = torchmetrics.MatthewsCorrCoef(task="binary", num_classes=2) # Matthews 相关系数
 
         # 图卷积层配置
+
         hfeat = self.hparams.hfeat
+        # 隐藏特征维度
+
         gatdrop = self.hparams.gatdropout
+        # GAT 层的 dropout 率
+
         numheads = self.hparams.num_heads
+        # GAT 注意力头数量
+
         embfeat = self.hparams.embfeat
+        # 嵌入特征维度
+
         gnn_args = {"out_feats": hfeat}
+        # GNN 输出特征维度
         if self.hparams.gnntype == "gat":
             gnn = GATConv
             gat_args = {"num_heads": numheads, "feat_drop": gatdrop}
@@ -552,226 +758,292 @@ class LitGNN(pl.LightningModule):
             gnn2_args = {"in_feats": hfeat, **gnn_args}
 
         # model: gat2layer
+        # 配置 2 层 GAT 模型
         if "gat" in self.hparams.model:
+            # 第一层
             self.gat = gnn(**gnn1_args)
+            # 第二层
             self.gat2 = gnn(**gnn2_args)
+
             fcin = hfeat * numheads if self.hparams.gnntype == "gat" else hfeat
             self.fc = th.nn.Linear(fcin, self.hparams.hfeat)
             self.fconly = th.nn.Linear(embfeat, self.hparams.hfeat)
             self.mlpdropout = th.nn.Dropout(self.hparams.mlpdropout)
 
         # model: mlp-only
+        # 配置仅 MLP 模型
         if "mlponly" in self.hparams.model:
             self.fconly = th.nn.Linear(embfeat, self.hparams.hfeat)
             self.mlpdropout = th.nn.Dropout(self.hparams.mlpdropout)
 
         # model: contains femb
+        # 配置包含函数嵌入的模型
+        ## 神经，根本没用到
         if "+femb" in self.hparams.model:
             self.fc_femb = th.nn.Linear(embfeat * 2, self.hparams.hfeat)
+        
+        # 在 __init__ 方法中添加
+        if "residual" in self.hparams.model:
+            self.use_residual = True
+        else:
+            self.use_residual = False
 
         # self.resrgat = ResRGAT(hdim=768, rdim=1, numlayers=1, dropout=0)
         # self.gcn = GraphConv(embfeat, hfeat)
         # self.gcn2 = GraphConv(hfeat, hfeat)
 
         # Transform codebert embedding
+        # 转换 CodeBERT 嵌入维度
         self.codebertfc = th.nn.Linear(768, self.hparams.hfeat)
 
-        # Hidden Layers
+        # Hidden Layers   
+        # 隐藏层配置
         self.fch = []
         for _ in range(8):
+            # 添加 8 个隐藏层，每层都是全连接层
             self.fch.append(th.nn.Linear(self.hparams.hfeat, self.hparams.hfeat))
+        # 将隐藏层包装为 ModuleList
         self.hidden = th.nn.ModuleList(self.fch)
+        # 隐藏层的 dropout
         self.hdropout = th.nn.Dropout(self.hparams.hdropout)
+        # 输出层，2 个类别（安全/漏洞）
         self.fc2 = th.nn.Linear(self.hparams.hfeat, 2)
 
     def forward(self, g, test=False, e_weights=[], feat_override=""):
-        """模型的前向传播。
-        
-        参数:
-            g: 输入图
-            test: 是否为测试模式
-            e_weights: 边权重（仅用于GNNExplainer）
-            feat_override: 特征覆盖（仅用于GNNExplainer）
-        
-        返回:
-            tuple: 包含行级和方法级预测结果的元组
-        """
+        # 根据具体模式选择输入数据
         if self.hparams.nsampling and not test:
+        # 处理邻居采样的情况（训练时使用）
+            # 目标节点的嵌入特征
             hdst = g[2][-1].dstdata[self.EMBED]
-            h_func = g[2][-1].dstdata["_FUNC_EMB"]
-            g2 = g[2][1]
-            g = g[2][0]
+            h_func = g[2][-1].dstdata["_FUNC_EMB"] # 目标节点的函数嵌入
+            g2 = g[2][1] # 采样后的子图（第1层）
+            g = g[2][0] # 采样后的子图（第0层）
             if "gat2layer" in self.hparams.model:
+                # 对于2层GAT，使用第0层子图的源节点特征
                 h = g.srcdata[self.EMBED]
             elif "gat1layer" in self.hparams.model:
+                # 对于1层GAT，使用第1层子图的源节点特征
                 h = g2.srcdata[self.EMBED]
         else:
-            g2 = g
-            h = g.ndata[self.EMBED]
+            # 非邻居采样的情况（测试或不使用邻居采样时）
+            g2 = g  # 完整图
+            h = g.ndata[self.EMBED]  # 所有节点的嵌入特征
             if len(feat_override) > 0:
+                # 如果指定了特征覆盖，使用指定的特征
                 h = g.ndata[feat_override]
-            h_func = g.ndata["_FUNC_EMB"]
-            hdst = h
+            h_func = g.ndata["_FUNC_EMB"]  # 所有节点的函数嵌入
+            hdst = h # 目标节点特征就是所有节点特征
 
         if self.random:
+            # 如果设置为随机模式，返回随机预测结果
             return th.rand((h.shape[0], 2)).to(self.device), th.rand(
                 h_func.shape[0], 2
             ).to(self.device)
 
         # model: contains femb
+        ## 没用到，可忽略
         if "+femb" in self.hparams.model:
+            # 如果模型包含函数嵌入，将代码嵌入和函数嵌入拼接
+            # 形状: [N, hfeat + func_feat_dim]
             h = th.cat([h, h_func], dim=1)
             h = F.elu(self.fc_femb(h))
 
         # Transform h_func if wrong size
+        ## 这个地方有点问题
         if self.hparams.embfeat != 768:
             h_func = self.codebertfc(h_func)
 
         # model: gat2layer
         if "gat" in self.hparams.model:
             if "gat2layer" in self.hparams.model:
+                # 2层GAT处理
+                h_residual = h  # 保存原始特征用于残差连接
+                
                 h = self.gat(g, h)
+                # 第一层GAT
                 if self.hparams.gnntype == "gat":
+                    # 如果是GAT，需要将多头注意力的输出展平
                     h = h.view(-1, h.size(1) * h.size(2))
-                h = self.gat2(g2, h)
+                
+                # 添加残差连接（如果启用且维度匹配）
+                if "residual" in self.hparams.model and h.shape == h_residual.shape:
+                    h = h + h_residual
+                
+                h_residual2 = h  # 保存第一层输出用于第二层残差连接
+                
+                h = self.gat2(g2, h) # 第二层GAT
                 if self.hparams.gnntype == "gat":
+                    # 再次展平多头注意力的输出
                     h = h.view(-1, h.size(1) * h.size(2))
+                
+                # 添加残差连接（如果启用且维度匹配）
+                if "residual" in self.hparams.model and h.shape == h_residual2.shape:
+                    h = h + h_residual2
+                    
             elif "gat1layer" in self.hparams.model:
-                h = self.gat(g2, h)
+                # 1层GAT处理
+                h_residual = h  # 保存原始特征用于残差连接
+                
+                h = self.gat(g2, h) # 单层GAT
                 if self.hparams.gnntype == "gat":
+                    # 展平多头注意力的输出
                     h = h.view(-1, h.size(1) * h.size(2))
+                
+                # 添加残差连接（如果启用且维度匹配）
+                if "residual" in self.hparams.model and h.shape == h_residual.shape:
+                    h = h + h_residual
+            # 通过全连接层和激活函数处理
             h = self.mlpdropout(F.elu(self.fc(h)))
+            # 处理函数嵌入
             h_func = self.mlpdropout(F.elu(self.fconly(h_func)))
 
         # Edge masking (for GNNExplainer)
         if test and len(e_weights) > 0:
-            g.ndata["h"] = h
-            g.edata["ew"] = e_weights
+            # 测试时使用边权重进行GNNExplainer解释
+            g.ndata["h"] = h  # 将特征存储到图中
+            g.edata["ew"] = e_weights  # 设置边权重
+            # 使用边权重更新节点特征
             g.update_all(
                 dgl.function.u_mul_e("h", "ew", "m"), dgl.function.mean("m", "h")
             )
             h = g.ndata["h"]
+            # 提取更新后的特征
 
         # model: mlp-only
         if "mlponly" in self.hparams.model:
-            h = self.mlpdropout(F.elu(self.fconly(hdst)))
-            h_func = self.mlpdropout(F.elu(self.fconly(h_func)))
+            # 仅MLP模型处理
+            h = self.mlpdropout(F.elu(self.fconly(hdst)))# 处理目标节点特征
+            h_func = self.mlpdropout(F.elu(self.fconly(h_func)))# 处理函数嵌入
 
         # Hidden layers
         for idx, hlayer in enumerate(self.hidden):
-            h = self.hdropout(F.elu(hlayer(h)))
-            h_func = self.hdropout(F.elu(hlayer(h_func)))
-        h = self.fc2(h)
+            # 遍历8个隐藏层
+            h = self.hdropout(F.elu(hlayer(h))) # 处理行级特征
+            h_func = self.hdropout(F.elu(hlayer(h_func))) # 处理函数级特征
+        h = self.fc2(h) # 行级预测输出
         h_func = self.fc2(
             h_func
-        )  # Share weights between method-level and statement-level tasks
+        )  ## 方法级预测输出，与行级预测共享权重
 
         if self.hparams.methodlevel:
-            g.ndata["h"] = h
-            return dgl.mean_nodes(g, "h"), None
+            # 如果是方法级预测模式
+            g.ndata["h"] = h  # 将行级特征存储到图中
+            return dgl.mean_nodes(g, "h"), None  # 返回图的平均特征作为方法级预测
         else:
-            return h, h_func  # Return two values for multitask training
+            return h, h_func  ## 返回行级和方法级预测，用于多任务训练
 
     def shared_step(self, batch, test=False):
         """模型的共享步骤，用于训练、验证和测试阶段。
-        
-        参数:
-            batch: 批次数据
-            test: 是否为测试模式
-        
-        返回:
-            tuple: 包含logits（预测结果）、labels（行级标签）和labels_func（方法级标签）的元组
         """
-        logits = self(batch, test)
+        logits = self(batch, test) # 执行前向传播，获取预测结果
         if self.hparams.methodlevel:
+            # 方法级预测模式
             if self.hparams.nsampling:
+                # 检查是否使用了邻居采样，如果是则抛出错误
+                # 因为方法级预测需要整个图的信息，不能使用邻居采样
                 raise ValueError("Cannot train on method level with nsampling.")
+            # 从图中提取最大的 _VULN 值作为方法级标签
+            # 这里使用 max_nodes 是因为方法级标签是整个函数的标签，取最大值表示函数是否包含漏洞
             labels = dgl.max_nodes(batch, "_VULN").long()
-            labels_func = None
+            labels_func = None # 方法级模式下不需要单独的方法级标签
         else:
+            # 行级预测模式
             if self.hparams.nsampling and not test:
-                labels = batch[2][-1].dstdata["_VULN"].long()
-                labels_func = batch[2][-1].dstdata["_FVULN"].long()
+                # 如果使用了邻居采样且不是测试模式
+                # 从采样后的子图中提取目标节点的标签
+                labels = batch[2][-1].dstdata["_VULN"].long()# 行级标签
+                labels_func = batch[2][-1].dstdata["_FVULN"].long() # 方法级标签
             else:
-                labels = batch.ndata["_VULN"].long()
-                labels_func = batch.ndata["_FVULN"].long()
-        return logits, labels, labels_func
+                # 非邻居采样模式或测试模式
+                # 从完整图中提取所有节点的标签
+                labels = batch.ndata["_VULN"].long() # 行级标签
+                labels_func = batch.ndata["_FVULN"].long() # 方法级标签
+        return logits, labels, labels_func  # 返回预测结果、行级标签和方法级标签
 
     def training_step(self, batch, batch_idx):
         """模型的训练步骤。
-        
-        参数:
-            batch: 批次数据
-            batch_idx: 批次索引
-        
-        返回:
-            训练损失值
         """
         logits, labels, labels_func = self.shared_step(
             batch
-        )  # Labels func should be the method-level label for statements
-        # print(logits.argmax(1), labels_func)
-        loss1 = self.loss(logits[0], labels)
+        )  
+        # 调用 shared_step 方法获取预测结果和标签
+        # print(logits.argmax(1), labels_func)  # 调试用，打印预测结果和方法级标签
+        loss1 = self.loss(logits[0], labels)   # 计算行级预测的损失
         if not self.hparams.methodlevel:
-            loss2 = self.loss_f(logits[1], labels_func)
+            loss2 = self.loss_f(logits[1], labels_func)   # 计算方法级预测的损失
         # Need some way of combining the losses for multitask training
-        loss = 0
+        # 多任务训练的损失组合方式
+        loss = 0 # 初始化总损失
         if "line" in self.hparams.multitask:
-            loss1 = self.loss(logits[0], labels)
-            loss += loss1
+            # 如果多任务包含行级预测
+            loss1 = self.loss(logits[0], labels) # 重新计算行级损失
+            loss += loss1  # 加到总损失中
         if "method" in self.hparams.multitask and not self.hparams.methodlevel:
-            loss2 = self.loss(logits[1], labels_func)
-            loss += loss2
-
+            # 如果多任务包含方法级预测且不是纯方法级模式
+            loss2 = self.loss(logits[1], labels_func)# 计算方法级损失
+            loss += loss2   # 加到总损失中
+        # 选择要用于评估的预测结果
+        # 如果多任务模式是纯方法级，则使用方法级预测，否则使用行级预测
         logits = logits[1] if self.hparams.multitask == "method" else logits[0]
         pred = F.softmax(logits, dim=1)
-        acc = self.accuracy(pred.argmax(1), labels)
+        # 对预测结果应用 softmax，得到概率分布
+        # 取最大概率的类别作为预测结果
+
+        acc = self.accuracy(pred.argmax(1), labels)# 计算准确率
         if not self.hparams.methodlevel:
             acc_func = self.accuracy(logits.argmax(1), labels_func)
+            # 计算方法级准确率
         mcc = self.mcc(pred.argmax(1), labels)
-        # print(pred.argmax(1), labels)
+        # 计算 Matthews 相关系数
+        # print(pred.argmax(1), labels)  # 调试用，打印预测结果和标签
 
         # 获取batch_size
         if self.hparams.nsampling:
+            # 如果使用了邻居采样，batch_size 就是标签的数量
             batch_size = labels.shape[0]
         else:
+            # 否则，batch_size 是图中节点的数量
             batch_size = batch.number_of_nodes()
-
+        #   记录训练损失到日志
         self.log("train_loss", loss, on_epoch=True, prog_bar=True, logger=True, batch_size=batch_size)
+        # 记录训练准确率到日志
         self.log("train_acc", acc, prog_bar=True, logger=True, batch_size=batch_size)
         if not self.hparams.methodlevel:
+            # 记录方法级准确率到日志
             self.log("train_acc_func", acc_func, prog_bar=True, logger=True, batch_size=batch_size)
+        # 记录 Matthews 相关系数到日志
         self.log("train_mcc", mcc, prog_bar=True, logger=True, batch_size=batch_size)
-        return loss
+        return loss # 返回总损失，用于反向传播
 
     def validation_step(self, batch, batch_idx):
         """模型的验证步骤。
-        
-        参数:
-            batch: 批次数据
-            batch_idx: 批次索引
-        
-        返回:
-            验证损失值
         """
+        # 调用 shared_step 方法获取预测结果和标签
         logits, labels, labels_func = self.shared_step(batch)
-        loss = 0
+        loss = 0 # 初始化总损失
         if "line" in self.hparams.multitask:
+            # 如果多任务包含行级预测，计算行级损失
             loss1 = self.loss(logits[0], labels)
-            loss += loss1
+            loss += loss1  # 加到总损失中
         if "method" in self.hparams.multitask:
+            # 如果多任务包含方法级预测，计算方法级损失
             loss2 = self.loss_f(logits[1], labels_func)
-            loss += loss2
+            loss += loss2  # 加到总损失中
 
+        # 选择要用于评估的预测结果
+        # 如果多任务模式是纯方法级，则使用方法级预测，否则使用行级预测
         logits = logits[1] if self.hparams.multitask == "method" else logits[0]
+        # 对预测结果应用 softmax，得到概率分布
         pred = F.softmax(logits, dim=1)
         acc = self.accuracy(pred.argmax(1), labels)
         mcc = self.mcc(pred.argmax(1), labels)
 
         # 获取batch_size
         if self.hparams.nsampling:
+            # 如果使用了邻居采样，batch_size 就是标签的数量
             batch_size = labels.shape[0]
         else:
+            # 否则，batch_size 是图中节点的数量
             batch_size = batch.number_of_nodes()
 
         self.log("val_loss", loss, on_step=True, prog_bar=True, logger=True, batch_size=batch_size)
@@ -782,29 +1054,26 @@ class LitGNN(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        """模型的测试步骤。
-        
-        参数:
-            batch: 批次数据
-            batch_idx: 批次索引
-        
-        返回:
-            tuple: 包含logits（预测结果）、labels（标签）和preds（详细预测信息）的元组
-        """
         logits, labels, _ = self.shared_step(
             batch, True
         )  # TODO: 使其支持多任务
 
         if self.hparams.methodlevel:
+            # 方法级标签就是原始标签
+            # 返回方法级预测、标签和解批后的图
             labels_f = labels
             return logits[0], labels_f, dgl.unbatch(batch)
-
+        # 非方法级预测模式（行级或多任务）
+        # 将行级预测概率存储到图的节点数据中
         batch.ndata["pred"] = F.softmax(logits[0], dim=1)
+        # 将方法级预测概率存储到图的节点数据中
         batch.ndata["pred_func"] = F.softmax(logits[1], dim=1)
-        logits_f = []
+        logits_f = [] # 存储方法级预测的列表
         labels_f = []
-        preds = []
+        preds = []  # 存储详细预测结果的列表
+        # 遍历解批后的图（每个子图对应一个函数/方法）
         for i in dgl.unbatch(batch):
+            # 为每个子图添加详细预测信息
             preds.append(
                 [
                     list(i.ndata["pred"].detach().cpu().numpy()),
@@ -813,64 +1082,88 @@ class LitGNN(pl.LightningModule):
                     list(i.ndata["_LINE"].detach().cpu().numpy()),
                 ]
             )
+            # 计算方法级预测（使用平均池化）
             logits_f.append(dgl.mean_nodes(i, "pred_func").detach().cpu())
+            # 计算方法级标签（使用平均池化）
             labels_f.append(dgl.mean_nodes(i, "_FVULN").detach().cpu())
+        # 返回：
+        # 1. [行级预测, 方法级预测]
+        # 2. [行级标签, 方法级标签]
+        # 3. 详细预测结果列表
         return [logits[0], logits_f], [labels, labels_f], preds
 
     def test_epoch_end(self, outputs):
-        """计算整个测试集的评估指标。
-        
+        """计算整个测试集的评估指标。      
         参数:
             outputs: 测试步骤的输出结果列表
         """
+        # 初始化存储预测和真实标签的变量
         all_pred = th.empty((0, 2)).long().cuda()
-        all_true = th.empty((0)).long().cuda()
-        all_pred_f = []
-        all_true_f = []
-        all_funcs = []
-        from importlib import reload
+        # 存储所有行级预测
+        all_true = th.empty((0)).long().cuda()# 存储所有行级真实标签
+        all_pred_f = [] # 存储所有方法级预测
+        all_true_f = [] # 存储所有方法级真实标签
+        all_funcs = []  # 存储所有函数的预测信息
+        from importlib import reload # 导入模块重新加载功能
 
         reload(lvdgne)
         reload(ml)
         if self.hparams.methodlevel:
+            # 方法级预测模式
             for out in outputs:
-                all_pred_f += out[0]
-                all_true_f += out[1]
+                # 收集方法级预测和标签
+                all_pred_f += out[0]  # 添加方法级预测
+                all_true_f += out[1]  # 添加方法级标签
+                # 处理每个图
                 for idx, g in enumerate(out[2]):
+                    # 收集行级真实标签
                     all_true = th.cat([all_true, g.ndata["_VULN"]])
+                    # 初始化 GNN 解释的预测结果
                     gnnelogits = th.zeros((g.number_of_nodes(), 2), device="cuda")
                     gnnelogits[:, 0] = 1
                     if out[1][idx] == 1:
+                        # 如果真实标签是漏洞
                         zeros = th.zeros(g.number_of_nodes(), device="cuda")
                         importance = th.ones(g.number_of_nodes(), device="cuda")
+                        # 初始化重要性为1
                         try:
                             if out[1][idx] == 1:
                                 importance = lvdgne.get_node_importances(self, g)
                             importance = importance.unsqueeze(1)
+                            # 增加维度
+                            # 构造预测结果，使用重要性作为漏洞概率
                             gnnelogits = th.cat([zeros.unsqueeze(1), importance], dim=1)
                         except Exception as E:
                             print(E)
                             pass
+                    # 添加 GNN 解释的预测结果
                     all_pred = th.cat([all_pred, gnnelogits])
+                    # 生成函数级预测（重复方法级预测到每个节点）
                     func_pred = out[0][idx].argmax().repeat(g.number_of_nodes())
+                    # 添加函数预测信息
                     all_funcs.append(
                         [
-                            gnnelogits.detach().cpu().numpy(),
-                            g.ndata["_VULN"].detach().cpu().numpy(),
-                            func_pred.detach().cpu(),
+                            gnnelogits.detach().cpu().numpy(), # 预测概率
+                            g.ndata["_VULN"].detach().cpu().numpy(), # 真实标签
+                            func_pred.detach().cpu(),  # 函数级预测
                         ]
                     )
-            all_true = all_true.long()
+            all_true = all_true.long()  # 确保标签类型为长整型
         else:
+            # 非方法级预测模式（行级或多任务）
             for out in outputs:
+                # 收集行级预测和标签
                 all_pred = th.cat([all_pred, out[0][0]])
                 all_true = th.cat([all_true, out[1][0]])
+                # 收集方法级预测和标签
                 all_pred_f += out[0][1]
                 all_true_f += out[1][1]
+                # 收集函数预测信息
                 all_funcs += out[2]
-        all_pred = F.softmax(all_pred, dim=1)
-        all_pred_f = F.softmax(th.stack(all_pred_f).squeeze(), dim=1)
-        all_true_f = th.stack(all_true_f).squeeze().long()
+        # 处理预测结果
+        all_pred = F.softmax(all_pred, dim=1) # 对行级预测应用 softmax
+        all_pred_f = F.softmax(th.stack(all_pred_f).squeeze(), dim=1) # 对方法级预测应用 softmax
+        all_true_f = th.stack(all_true_f).squeeze().long() 
         self.all_funcs = all_funcs
         self.all_true = all_true
         self.all_pred = all_pred
@@ -887,53 +1180,69 @@ class LitGNN(pl.LightningModule):
         multitask_pred = []
         multitask_true = []
         for af in all_funcs:
+            # 构建行级预测和函数级预测的组合
             line_pred = list(zip(af[0], af[2]))
+            # 根据函数级预测调整行级预测
             multitask_pred += [list(i[0]) if i[1] == 1 else [1, 0] for i in line_pred]
+            # 添加真实标签
             multitask_true += list(af[1])
+        # 保存多任务预测和标签
         self.linevd_pred = multitask_pred
         self.linevd_true = multitask_true
         #multitask_true = th.LongTensor(multitask_true)
+        # 转换为张量
         import numpy as np
         multitask_true = th.LongTensor(np.array(multitask_true).astype(int))
         multitask_pred = th.Tensor(multitask_pred)
+        # 计算最佳 F1 阈值
         self.f1thresh = ml.best_f1(multitask_true, [i[1] for i in multitask_pred])
+        # 计算多任务指标
         self.res2mt = ml.get_metrics_logits(multitask_true, multitask_pred)
+        # 计算行级指标
         self.res2 = ml.get_metrics_logits(all_true, all_pred)
+        # 计算方法级指标
         self.res2f = ml.get_metrics_logits(all_true_f, all_pred_f)
 
         # 排名指标
+        # 所有样本的排名指标
         rank_metrs = []
+        # 仅正样本的排名指标
         rank_metrs_vo = []
         for af in all_funcs:
+            # 计算排名指标
             rank_metr_calc = svdr.rank_metr([i[1] for i in af[0]], af[1], 0)
-            if max(af[1]) > 0:
+            if max(af[1]) > 0:  # 如果是正样本
                 rank_metrs_vo.append(rank_metr_calc)
             rank_metrs.append(rank_metr_calc)
         try:
+            # 计算所有样本的平均排名指标
             self.res3 = ml.dict_mean(rank_metrs)
         except Exception as E:
             print(E)
             pass
+        # 计算仅正样本的平均排名指标
         self.res3vo = ml.dict_mean(rank_metrs_vo)
 
         # 从语句级别预测方法级别
         method_level_pred = []
         method_level_true = []
         for af in all_funcs:
+            # 计算方法级真实标签（如果有任何漏洞行，则为漏洞）
             method_level_true.append(1 if sum(af[1]) > 0 else 0)
-            pred_method = 0
+            pred_method = 0  # 默认预测为安全
+            # 如果任何行预测为漏洞，则方法级预测为漏洞
             for logit in af[0]:
                 if logit[1] > 0.5:
                     pred_method = 1
                     break
             method_level_pred.append(pred_method)
+        # 计算从行级预测方法级的指标
         self.res4 = ml.get_metrics(method_level_true, method_level_pred)
 
         return
 
     def plot_pr_curve(self):
         """绘制正类的精确率-召回率曲线（测试后调用）。
-        
         该方法使用测试集的预测结果和真实标签来绘制精确率-召回率曲线，
         用于评估模型在不同阈值下的性能表现。
         """
@@ -946,9 +1255,6 @@ class LitGNN(pl.LightningModule):
 
     def configure_optimizers(self):
         """配置模型的优化器。
-        
-        返回:
-            配置好的优化器实例
         """
         return th.optim.AdamW(self.parameters(), lr=self.lr)
 

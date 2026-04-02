@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CodeBERT 模型在漏洞检测中的应用
+GraphCodeBERT 模型在漏洞检测中的应用
 
-该模块实现了基于 CodeBERT 预训练模型的漏洞检测功能，包括：
+该模块实现了基于 GraphCodeBERT 预训练模型的漏洞检测功能，包括：
 1. 函数级和代码行级数据处理
 2. 模型定义和训练
 3. 模型评估和测试
@@ -11,7 +11,7 @@ CodeBERT 模型在漏洞检测中的应用
 主要使用的库：
 - pandas: 数据处理和分析
 - pytorch_lightning: 深度学习训练框架
-- transformers: 提供 CodeBERT 预训练模型
+- transformers: 提供 GraphCodeBERT 预训练模型
 - torch: 深度学习核心库
 - torchmetrics: 模型评估指标
 """
@@ -29,14 +29,18 @@ from transformers import AutoModel, AutoTokenizer
 
 
 class BigVulDatasetNLP:
-    """函数级代码数据集，用于 CodeBERT 模型输入
+    """函数级代码数据集，用于 GraphCodeBERT 模型输入
     
-    该类处理函数级别的代码数据，将代码文本转换为 CodeBERT 可接受的输入格式
+    该类处理函数级别的代码数据，将代码文本转换为 GraphCodeBERT 可接受的输入格式
     支持训练、验证和测试集的处理，并对训练和验证集进行类别平衡
     """
 
     def __init__(self, partition="train", random_labels=False):
         """初始化数据集
+        
+        Args:
+            partition: 数据集划分，可选值："train", "val", "test"
+            random_labels: 是否使用随机标签（用于基准测试）
         """
         # 加载 BigVul 数据集
         self.df = svdd.bigvul()
@@ -52,14 +56,37 @@ class BigVulDatasetNLP:
             # 合并漏洞和非漏洞样本，实现类别平衡
             self.df = pd.concat([vul, nonvul])
         
-        # 加载 CodeBERT 分词器
-        tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
+        # 加载 GraphCodeBERT 分词器
+        tokenizer = AutoTokenizer.from_pretrained("microsoft/graphcodebert-base")
         # 分词参数：填充到最大长度、截断过长序列、返回 PyTorch 张量
         tk_args = {"padding": True, "truncation": True, "return_tensors": "pt"}
+        
         # 处理文本，添加分隔符作为前缀
-        text = [tokenizer.sep_token + " " + ct for ct in self.df.before.tolist()]
-        # 分词处理
-        tokenized = tokenizer(text, **tk_args)
+        code_texts = [tokenizer.sep_token + " " + ct for ct in self.df.before.tolist()]
+        
+        # 生成结构信息
+        structure_texts = []
+        for code in self.df.before.tolist():
+            lines = code.split('\n')
+            structure = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith('if') or line.startswith('for') or line.startswith('while') or line.startswith('do'):
+                    structure.append('<control>')
+                elif line.startswith('return'):
+                    structure.append('<return>')
+                elif '=' in line and not line.startswith('//'):
+                    structure.append('<assignment>')
+                elif line.startswith('{') or line.startswith('}'):
+                    structure.append('<bracket>')
+                else:
+                    structure.append('<statement>')
+            structure_texts.append(' '.join(structure))
+        
+        # 分词处理（代码-结构对）
+        tokenized = tokenizer(code_texts, structure_texts, **tk_args)
         # 获取标签列表
         self.labels = self.df.vul.tolist()
         # 如果需要使用随机标签（用于基准测试）
@@ -89,7 +116,7 @@ class BigVulDatasetNLP:
 
 
 class BigVulDatasetNLPLine:
-    """代码行级数据集，用于 CodeBERT 模型输入
+    """代码行级数据集，用于 GraphCodeBERT 模型输入
     
     该类处理代码行级别的数据，将每一行代码作为一个样本
     特别关注漏洞相关的代码行，用于更细粒度的漏洞检测
@@ -113,7 +140,8 @@ class BigVulDatasetNLPLine:
         df = df.sample(min(1000, len(df)))
 
         # 存储代码行和对应的标签
-        texts = []
+        code_texts = []
+        structure_texts = []
         self.labels = []
 
         # 处理每个漏洞样本
@@ -133,18 +161,29 @@ class BigVulDatasetNLPLine:
                 if line[:2] == "//":
                     continue
                 # 添加代码行到文本列表
-                texts.append(line.strip())
+                code_texts.append(line.strip())
+                # 生成结构信息
+                if line.startswith('if') or line.startswith('for') or line.startswith('while') or line.startswith('do'):
+                    structure_texts.append('<control>')
+                elif line.startswith('return'):
+                    structure_texts.append('<return>')
+                elif '=' in line and not line.startswith('//'):
+                    structure_texts.append('<assignment>')
+                elif line.startswith('{') or line.startswith('}'):
+                    structure_texts.append('<bracket>')
+                else:
+                    structure_texts.append('<statement>')
                 # 添加标签（1=漏洞行，0=非漏洞行）
                 self.labels.append(1 if idx in vuln_lines else 0)
 
-        # 加载 CodeBERT 分词器
-        tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
+        # 加载 GraphCodeBERT 分词器
+        tokenizer = AutoTokenizer.from_pretrained("microsoft/graphcodebert-base")
         # 分词参数
         tk_args = {"padding": True, "truncation": True, "return_tensors": "pt"}
         # 处理文本，添加分隔符作为前缀
-        text = [tokenizer.sep_token + " " + ct for ct in texts]
-        # 分词处理
-        tokenized = tokenizer(text, **tk_args)
+        code_texts = [tokenizer.sep_token + " " + ct for ct in code_texts]
+        # 分词处理（代码-结构对）
+        tokenized = tokenizer(code_texts, structure_texts, **tk_args)
         # 保存分词结果
         self.ids = tokenized["input_ids"]
         self.att_mask = tokenized["attention_mask"]
@@ -217,11 +256,11 @@ class BigVulDatasetNLPDataModule(pl.LightningDataModule):
         return DataLoader(self.test, batch_size=self.batch_size)
 
 
-class LitCodebert(pl.LightningModule):
-    """CodeBERT 模型的 PyTorch Lightning 实现
+class LitGraphCodebert(pl.LightningModule):
+    """GraphCodeBERT 模型的 PyTorch Lightning 实现
     
-    该类封装了 CodeBERT 模型的定义、训练和评估逻辑
-    使用预训练的 CodeBERT 模型进行漏洞检测
+    该类封装了 GraphCodeBERT 模型的定义、训练和评估逻辑
+    使用预训练的 GraphCodeBERT 模型进行漏洞检测
     """
 
     def __init__(self, lr: float = 1e-3):
@@ -235,9 +274,9 @@ class LitCodebert(pl.LightningModule):
         self.lr = lr
         # 保存超参数（用于模型检查点和日志）
         self.save_hyperparameters()
-        # 加载预训练的 CodeBERT 模型
-        self.bert = AutoModel.from_pretrained("microsoft/codebert-base")
-        # 第一全连接层：将 CodeBERT 输出的 768 维特征映射到 256 维
+        # 加载预训练的 GraphCodeBERT 模型
+        self.bert = AutoModel.from_pretrained("microsoft/graphcodebert-base")
+        # 第一全连接层：将 GraphCodeBERT 输出的 768 维特征映射到 256 维
         self.fc1 = torch.nn.Linear(768, 256)
         # 第二全连接层：将 256 维特征映射到 2 维（二分类）
         self.fc2 = torch.nn.Linear(256, 2)
@@ -258,7 +297,7 @@ class LitCodebert(pl.LightningModule):
         Returns:
             logits: 模型输出的 logits 张量（形状：[batch_size, 2]）
         """
-        # 禁用 CodeBERT 模型的梯度计算（冻结预训练模型）
+        # 禁用 GraphCodeBERT 模型的梯度计算（冻结预训练模型）
         with torch.no_grad():
             bert_out = self.bert(ids, attention_mask=mask)
         # 提取 CLS 标记的输出（用于分类任务）
@@ -363,41 +402,20 @@ class LitCodebert(pl.LightningModule):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
 
 
-run_id = svd.get_run_id()
-savepath = svd.get_dir(svd.processed_dir() / "codebert" / run_id)
-model = LitCodebert()
-data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
-checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val_loss")
-trainer = pl.Trainer(
-    gpus=1,
-    auto_lr_find=True,
-    default_root_dir=savepath,
-    num_sanity_val_steps=0,
-    callbacks=[checkpoint_callback],
-)
-tuned = trainer.tune(model, data)
-trainer.fit(model, data)
-trainer.test(model, data)
-
-# import sastvd.helpers.ml as ml
-# from tqdm import tqdm
-
-# run_id = "202108191652_2a65b8c_update_default_getitem_bigvul"
-# chkpoint = (
-#     svd.processed_dir()
-#     / f"codebert/{run_id}/lightning_logs/version_0/checkpoints/epoch=188-step=18900.ckpt"
-# )
-# model = LitCodebert.load_from_checkpoint(chkpoint)
-# model.cuda()
-# all_pred = torch.empty((0, 2)).long().cuda()
-# all_true = torch.empty((0)).long().cuda()
-# for batch in tqdm(data.test_dataloader()):
-#     ids, att_mask, labels = batch
-#     ids = ids.cuda()
-#     att_mask = att_mask.cuda()
-#     labels = labels.cuda()
-#     with torch.no_grad():
-#         logits = F.softmax(model(ids, att_mask), dim=1)
-#     all_pred = torch.cat([all_pred, logits])
-#     all_true = torch.cat([all_true, labels])
-# ml.get_metrics_logits(all_true, all_pred)
+# 运行示例
+if __name__ == "__main__":
+    run_id = svd.get_run_id()
+    savepath = svd.get_dir(svd.processed_dir() / "graphcodebert" / run_id)
+    model = LitGraphCodebert()
+    data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val_loss")
+    trainer = pl.Trainer(
+        gpus=1,
+        auto_lr_find=True,
+        default_root_dir=savepath,
+        num_sanity_val_steps=0,
+        callbacks=[checkpoint_callback],
+    )
+    tuned = trainer.tune(model, data)
+    trainer.fit(model, data)
+    trainer.test(model, data)

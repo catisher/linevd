@@ -7,7 +7,7 @@ import sastvd.helpers.datasets as svdd
 import sastvd.ivdetect.evaluate as ivde
 
 
-def bigvul():
+def main():
     """运行BigVul数据集的准备脚本。
     
     执行以下操作：
@@ -17,6 +17,7 @@ def bigvul():
     4. 生成Doc2Vec词嵌入
     """
     svdd.bigvul()  # 加载BigVul数据集
+    ## 意义不明的操作
     ivde.get_dep_add_lines_bigvul()  # 计算依赖添加行
     
     ## 暂不使用
@@ -30,4 +31,4 @@ def bigvul():
 
 
 if __name__ == "__main__":
-    bigvul()  # 执行BigVul数据集准备
+    main()  # 执行BigVul数据集准备

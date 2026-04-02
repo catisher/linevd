@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 数据集类定义模块
-
 该模块定义了BigVulDataset类，用于将BigVul数据集表示为图数据集，方便后续的图神经网络模型训练和评估。
-
 主要功能：
 1. 加载和过滤BigVul数据集
 2. 平衡训练集和验证集（解决类别不平衡问题）
@@ -30,13 +28,6 @@ class BigVulDataset:
 
     def __init__(self, partition="train", vulonly=False, sample=-1, splits="default"):
         """初始化BigVulDataset类
-        
-        Args:
-            partition (str): 数据集分区，可选值："train"、"val"、"test"，默认为"train"
-            vulonly (bool): 是否只包含有漏洞的样本，默认为False
-            sample (int): 是否使用样例数据集（指定样本数量），-1表示使用全部样本，默认为-1
-            splits (str): 数据集划分方式，与datasets.py中的bigvul函数参数一致，默认为"default"
-            
         执行步骤：
         1. 获取已完成图构建的样本ID
         2. 加载BigVul数据集
@@ -58,29 +49,27 @@ class BigVulDataset:
         
         # 2. 加载BigVul数据集
         self.df = svdds.bigvul(splits=splits)
-        if len(self.df[self.df.vul == 0]) == 0 :
-            raise ValueError("数据集没有漏洞样本V5")
+
         # 3. 保存分区信息
         self.partition = partition
         
         # 4. 过滤指定分区的样本
         self.df = self.df[self.df.label == partition]
-        if len(self.df[self.df.vul == 0]) == 0 :
-            raise ValueError("数据集没有非漏洞样本V6")
+
         # 5. 只保留已完成图构建的样本
         self.df = self.df[self.df.id.isin(self.finished)]
-        if len(self.df[self.df.vul == 0]) == 0 :
-            raise ValueError("数据集没有非漏洞样本V7")
+
         # 6. 平衡训练集和验证集（解决类别不平衡问题）
         if partition == "train" or partition == "val":
             vul = self.df[self.df.vul == 1]  # 获取所有有漏洞的样本
-            tem = self.df[self.df.vul == 0]
-            if len(vul) == 0 and len(self.df) == 0:
-                raise ValueError("数据集无任何有效样本！vul列全为无效值，请检查标签格式")
-            elif len(vul) == 0:
-                raise ValueError("数据集无漏洞样本（vul=1）！无法完成平衡采样")
-            elif len(tem) == 0:
-                raise ValueError("数据集无非漏洞样本（vul=0）！无法完成平衡采样")
+            #tem = self.df[self.df.vul == 0]
+            # if len(vul) == 0 and len(self.df) == 0:
+            #     raise ValueError("数据集无任何有效样本！vul列全为无效值，请检查标签格式")
+            # elif len(vul) == 0:
+            #     raise ValueError("数据集无漏洞样本（vul=1）！无法完成平衡采样")
+            # elif len(tem) == 0:
+            #     raise ValueError("数据集无非漏洞样本（vul=0）！无法完成平衡采样")
+
             # 从无漏洞样本中随机采样与有漏洞样本数量相同的样本
             nonvul = self.df[self.df.vul == 0].sample(len(vul), random_state=0)
             # 合并有漏洞和无漏洞样本，实现1:1平衡
@@ -91,9 +80,15 @@ class BigVulDataset:
 
         # 7. 调整测试集的正负样本比例（无漏洞样本数量不超过有漏洞样本的20倍）
         if partition == "test":
+            # 获取所有有漏洞的样本（vul=1）
             vul = self.df[self.df.vul == 1]
+            # 获取所有无漏洞的样本（vul=0）
             nonvul = self.df[self.df.vul == 0]
+            # 从无漏洞样本中随机采样，数量不超过有漏洞样本的20倍
+            # 使用 min() 确保不会采样超过实际的无漏洞样本数量
+            # random_state=0 确保每次运行结果一致，便于复现
             nonvul = nonvul.sample(min(len(nonvul), len(vul) * 20), random_state=0)
+            # 合并有漏洞样本和采样后的无漏洞样本，形成最终的测试集
             self.df = pd.concat([vul, nonvul])
 
         # 8. 如果sample>0，使用指定数量的样本（用于调试）
@@ -121,12 +116,6 @@ class BigVulDataset:
 
     def itempath(_id):
         """根据样本ID获取源代码文件路径
-        
-        Args:
-            _id (int): 样本ID
-            
-        Returns:
-            Path: 源代码文件的完整路径
         """
         return svd.processed_dir() / f"bigvul/before/{_id}.c"
 
@@ -135,19 +124,7 @@ class BigVulDataset:
         
         有效性检查条件：
         1. 节点文件(.nodes.json)中必须包含多个不同的lineNumber信息
-        2. 边文件(.edges.json)中必须包含REACHING_DEF或CDG类型的边
-        
-        Args:
-            _id (int): 样本ID
-            
-        Returns:
-            bool: 如果样本有效则返回True，否则返回False
-            
-        实现细节：
-        - 使用try-except捕获文件读取和解析错误
-        - 检查节点文件中的lineNumber集合大小是否大于1
-        - 检查边文件中的边类型是否包含REACHING_DEF或CDG
-        - 如果任何检查失败或发生异常，返回False
+        2. 边文件(.edges.json)中必须包含REACHING_DEF或CDG类型的边   
         """
         valid = 0
         try:
@@ -179,45 +156,16 @@ class BigVulDataset:
 
     def get_vuln_indices(self, _id):
         """根据样本ID获取存在漏洞的行索引
-        
-        Args:
-            _id (int): 样本ID
-            
-        Returns:
-            dict: 键为行号，值为1的字典，表示存在漏洞的行
-            
-        实现细节：
-        - 从数据框中查询指定ID的样本
-        - 获取该样本的removed字段（包含漏洞行的行号列表）
-        - 将行号列表转换为字典格式，方便后续处理
         """
         df = self.df[self.df.id == _id]  # 查询指定ID的样本
         removed = df.removed.item()  # 获取漏洞行的行号列表
         return dict([(i, 1) for i in removed])  # 转换为字典格式
 
     def stats(self):
-        """打印数据集的统计信息
-        
-        统计信息包括：
-        - 不同分区（label）的样本数量
-        - 每个分区中不同类别（vul）的样本数量
-        
-        实现细节：
-        - 使用pandas的groupby方法按label和vul进行分组
-        - 计算每个分组的样本数量
-        - 打印统计结果
-        """
         print(self.df.groupby(["label", "vul"]).count()[["id"]])
 
     def __getitem__(self, idx):
         """通过索引获取数据集样本
-        
-        Args:
-            idx (int): 样本索引
-            
-        Returns:
-            dict: 样本的字典表示
-            
         实现细节：
         - 使用pandas的iloc方法根据索引获取行
         - 将行转换为字典格式返回
@@ -226,18 +174,11 @@ class BigVulDataset:
 
     def __len__(self):
         """获取数据集的样本数量
-        
-        Returns:
-            int: 数据集的样本数量
         """
         return len(self.df)
 
     def __repr__(self):
-        """获取数据集的字符串表示
-        
-        Returns:
-            str: 包含数据集分区、样本数量和漏洞比例的字符串
-            
+        """获取数据集的字符串表示    
         实现细节：
         - 计算漏洞样本在总样本中的比例
         - 格式化返回字符串，包含关键信息

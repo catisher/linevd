@@ -83,6 +83,7 @@ def train_linevd(
         nsampling_hops=2,  # 邻居采样的跳数
         gtype=config["gtype"],
         splits=config["splits"],
+        feat=config["embtype"],
     )
 
     # 配置训练器和回调函数

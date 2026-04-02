@@ -2,6 +2,25 @@
 
 该脚本用于运行RQ5（Research Question 5）的实验，使用Ray Tune进行LineVD模型的超参数调优，
 重点研究跨项目设置下的漏洞检测效果，包括Chrome、Linux、Android等多个项目的交叉验证。
+研究问题 ：模型在跨项目设置下的泛化能力
+
+对比内容 ：
+
+- 数据集分割 ：9种不同的跨项目配置
+  - crossproject_Chrome ：Chrome 项目
+  - crossproject_linux ：Linux 项目
+  - crossproject_Android ：Android 项目
+  - crossproject_ImageMagick ：ImageMagick 项目
+  - crossproject_php-src ：PHP 源码项目
+  - crossproject_tcpdump ：tcpdump 项目
+  - crossproject_openssl ：OpenSSL 项目
+  - crossproject_krb5 ：Kerberos 5 项目
+  - crossproject_php ：PHP 项目
+  - crossproject_qemu ：QEMU 项目
+- 模型类型 ：固定为 gat2layer
+- 嵌入类型 ：固定为 codebert
+- 多任务类型 ：固定为 linemethod
+- 图类型 ：固定为 pdg-raw
 """
 
 import os

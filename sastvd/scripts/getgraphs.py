@@ -67,7 +67,22 @@ def preprocess(row):
 
 
 if __name__ == "__main__":
-    # 并行处理当前任务的数据
-    for i in range(25):
-        svd.dfmp(splits[i], preprocess, ordr=False, workers=8)
-   # svd.dfmp(splits[JOB_ARRAY_NUMBER], preprocess, ordr=False, workers=8)
+    # 使用多线程并行处理所有任务
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def process_task(task_idx):
+        """处理单个任务"""
+        print(f"Processing task {task_idx+1}/{NUM_JOBS}")
+        svd.dfmp(splits[task_idx], preprocess, ordr=False, workers=8)
+        print(f"Completed task {task_idx+1}/{NUM_JOBS}")
+    
+    # 创建线程池，最大线程数为 10（根据系统资源调整）
+    max_threads = 10
+    
+    print(f"Processing {NUM_JOBS} tasks with {max_threads} threads...")
+    
+    # 提交所有任务到线程池
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        executor.map(process_task, range(NUM_JOBS))
+    
+    print("All tasks completed!")

@@ -237,13 +237,8 @@ def genid():
 
 
 def get_run_id(args=None):
-    """生成运行 ID
-    
+    """生成运行 ID   
     包含时间戳、Git 提交信息和可选的参数信息
-    
-    Args:
-        args: 可选的参数对象，会被包含在运行 ID 中
-    
     Returns:
         str: 唯一的运行 ID
     """
@@ -260,9 +255,7 @@ def get_run_id(args=None):
 
 def hashstr(s):
     """对字符串进行哈希处理
-    
     将字符串转换为 8 位数字哈希值
-    
     Args:
         s: 要哈希的字符串
     

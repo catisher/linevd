@@ -272,11 +272,15 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         # 创建 DGL 图对象，使用边索引构建图
         g = dgl.graph((eo, ei))
         # 生成 GloVe 词向量嵌入
-        gembeds = th.Tensor(svdg.get_embeddings_list(code, self.glove_dict, 200))
+        #gembeds = th.Tensor(svdg.get_embeddings_list(code, self.glove_dict, 200))
+        gembeds = th.Tensor(np.array(svdg.get_embeddings_list(code, self.glove_dict, 200)))
         # 将 GloVe 嵌入存储到图的节点数据中
         g.ndata["_GLOVE"] = gembeds
+        
         # 生成 Doc2Vec 嵌入并存储到节点数据中
-        g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
+        # 下面这种更快
+        #g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
+        g.ndata["_DOC2VEC"] = th.Tensor(np.array([self.d2v.infer(i) for i in code]))
         # 如果提供了 CodeBERT 模型，则生成 CodeBERT 嵌入
         if codebert:
             # 清理代码文本中的制表符和换行符
@@ -358,12 +362,22 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             vuln = [0 for _ in lineno]
         # 创建 DGL 图对象，使用边索引构建图
         g = dgl.graph((eo, ei))
-        # 生成 GloVe 词向量嵌入
-        gembeds = th.Tensor(svdg.get_embeddings_list(code, self.glove_dict, 200))
+
+        # # 生成 GloVe 词向量嵌入
+        # gembeds = th.Tensor(svdg.get_embeddings_list(code, self.glove_dict, 200))
+        # # 将 GloVe 嵌入存储到图的节点数据中
+        # g.ndata["_GLOVE"] = gembeds
+        # # 生成 Doc2Vec 嵌入并存储到节点数据中
+        # g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
+        
+         # 生成 GloVe 词向量嵌入
+        gembeds = th.Tensor(np.array(svdg.get_embeddings_list(code, self.glove_dict, 200)))
         # 将 GloVe 嵌入存储到图的节点数据中
         g.ndata["_GLOVE"] = gembeds
         # 生成 Doc2Vec 嵌入并存储到节点数据中
-        g.ndata["_DOC2VEC"] = th.Tensor([self.d2v.infer(i) for i in code])
+        g.ndata["_DOC2VEC"] = th.Tensor(np.array([self.d2v.infer(i) for i in code]))
+        # 如果提供了 GraphCodeBERT 模型，则生成 GraphCodeBERT 嵌入
+
         # 如果提供了 GraphCodeBERT 模型，则生成 GraphCodeBERT 嵌入
 
         if graphcodebert:

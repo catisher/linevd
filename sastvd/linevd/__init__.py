@@ -7,6 +7,7 @@ import os
 from glob import glob
 
 import dgl
+import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import sastvd as svd

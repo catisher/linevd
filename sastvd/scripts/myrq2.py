@@ -39,7 +39,7 @@ sp = svd.get_dir(svd.processed_dir() / f"raytune_rq2_{samplesz}" / run_id)
 # 创建可训练函数
 trainable = tune.with_parameters(
     lvdrun.train_linevd, 
-    max_epochs=130,  # 最大训练轮数
+    max_epochs=100,  # 最大训练轮数
     samplesz=samplesz, 
     savepath=sp
 )

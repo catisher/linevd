@@ -619,7 +619,7 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
         # self.nsampling_hops: 采样跳数，控制采样多少层的邻居
         # 例如：如果设置为 2，则采样 2 层邻居（直接邻居 + 邻居的邻居）
         sampler = dgl.dataloading.MultiLayerFullNeighborSampler(self.nsampling_hops)
-        return dgl.dataloading.NodeDataLoader(
+        return dgl.dataloading.DataLoader(
             g,
             g.nodes(),
             sampler,

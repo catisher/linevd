@@ -636,9 +636,9 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
             图数据加载器，支持批量加载训练数据
         """
         if self.nsampling:
-            #g = next(iter(GraphDataLoader(self.train, batch_size=len(self.train))))
-            #return self.node_dl(g, shuffle=True)
-            return self.node_dl(self.train, shuffle=True)
+            g = next(iter(GraphDataLoader(self.train, batch_size=len(self.train))))
+            return self.node_dl(g, shuffle=True)
+            #return self.node_dl(self.train, shuffle=True)
         return GraphDataLoader(self.train, shuffle=True, batch_size=self.batch_size)
 
     def val_dataloader(self):
@@ -648,10 +648,8 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
             图数据加载器，支持批量加载验证数据
         """
         if self.nsampling:
-            #g = next(iter(GraphDataLoader(self.val, batch_size=len(self.val))))
-            #return self.node_dl(g)
-            # 使用分批加载，避免一次性加载全部数据
-            return self.node_dl(self.val, shuffle=True)
+            g = next(iter(GraphDataLoader(self.val, batch_size=len(self.val))))
+            return self.node_dl(g)
         return GraphDataLoader(self.val, batch_size=self.batch_size)
 
     def val_graph_dataloader(self):

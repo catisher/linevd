@@ -31,6 +31,7 @@ config = {
     "multitask": tune.choice(["linemethod"]),  # 多任务类型（最优值：行+方法级）
     "splits": tune.choice(["default"]),  # 数据集分割方式（最优值：默认分割）
     "lr": tune.choice([1e-4]),  # 学习率（最优值：1e-4）
+    "nsampling": tune.choice([False]),  # 是否使用邻居采样（最优值：False）
 }
 
 # 样本大小设置（-1表示使用所有样本）

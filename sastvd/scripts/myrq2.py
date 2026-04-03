@@ -28,6 +28,7 @@ config = {
     "multitask": tune.choice(["linemethod"]),  # 多任务类型
     "splits": tune.choice(["default"]),  # 数据集分割方式
     "lr": tune.choice([1e-4]),  # 学习率
+    "nsampling": tune.choice([False]),  # 是否使用邻居采样
 }
 
 # 样本大小设置（-1表示使用所有样本）

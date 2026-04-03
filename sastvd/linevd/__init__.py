@@ -222,7 +222,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             raise ValueError("codebert or graphcodebert must be provided")
 
     
-    def item_codebert(self, _id, codebert):
+    def item_codebert(self, _id, codebert=None):
         """缓存单个数据项的代码图。
         """
         """获取并缓存指定ID的代码图数据项。
@@ -260,6 +260,9 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
                         g.ndata.pop(i, None)
                 # 返回处理后的图
                 return g
+        # 如果缓存不存在，则需要提供 codebert 模型来生成
+        if codebert is None:
+            raise ValueError(f"Cache not found for id {_id}, and codebert model is not provided. Please run cache_items first.")
         # 如果缓存不存在，则进行特征提取
         code, lineno, ei, eo, et = feature_extraction(
             svddc.BigVulDataset.itempath(_id), self.graph_type
@@ -324,7 +327,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         # 加载方法级嵌入并复制到所有节点
         g.ndata["_FUNC_EMB"] = th.load(emb_path, weights_only=True).repeat((g.number_of_nodes(), 1))
         
-    def item_graphcodebert(self, _id, graphcodebert):
+    def item_graphcodebert(self, _id, graphcodebert=None):
         """缓存单个数据项的 GraphCodeBERT 代码图。
         """
         # 构建缓存目录路径，包含图类型信息
@@ -351,6 +354,9 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
                         g.ndata.pop(i, None)
                 # 返回处理后的图
                 return g
+        # 如果缓存不存在，则需要提供 graphcodebert 模型来生成
+        if graphcodebert is None:
+            raise ValueError(f"Cache not found for id {_id}, and graphcodebert model is not provided. Please run cache_items first.")
         # 如果缓存不存在，则进行特征提取
         code, lineno, ei, eo, et = feature_extraction(
             svddc.BigVulDataset.itempath(_id), self.graph_type

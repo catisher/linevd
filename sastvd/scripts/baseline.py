@@ -1,7 +1,3 @@
-"""
-测试代码
-"""
-
 import os
 
 import sastvd as svd
@@ -11,26 +7,25 @@ from ray import tune
 # 设置环境变量
 os.environ["SLURM_JOB_NAME"] = "bash"
 
-# RQ1: CodeBERT vs GraphCodeBERT 配置
 config = {
-    "hfeat": tune.choice([512]),  # 隐藏特征维度
-    "embtype": tune.choice(["codebert"]),  # rq1
-    "stmtweight": tune.choice([1]),  # 语句权重
-    "hdropout": tune.choice([0.3]),  # 隐藏层dropout率
-    "gatdropout": tune.choice([0.2]),  # GAT层dropout率
-    "modeltype": tune.choice(["gat2layer"]),  # rq2
-    "gnntype": tune.choice(["gat"]),  # rq3
-    "loss": tune.choice(["ce"]),  # rq4
-    "gamma": tune.choice([2]),  # Focal Loss参数gamma
-    "scea": tune.choice([0.5]),  # SCEA参数（仅对loss="sce"有效）
-    "gtype": tune.choice(["pdg+raw"]),  # rq5
-    "batch_size": tune.choice([256]),  # 批次大小
-    "multitask": tune.choice(["linemethod"]),  # 多任务类型
-    "splits": tune.choice(["default"]),  # 数据集分割方式
-    "lr": tune.choice([1e-4]),  # 学习率
-    "nsampling": tune.choice([False]),  # 是否使用邻居采样
-    "mlp_layers": tune.choice([8]),
-    "use_bn": tune.choice([False]),
+    "hfeat": tune.grid_search([512]),  # 隐藏特征维度
+    "embtype": tune.grid_search(["codebert"]),  # rq1
+    "stmtweight": tune.grid_search([1]),  # 语句权重
+    "hdropout": tune.grid_search([0.3]),  # 隐藏层dropout率
+    "gatdropout": tune.grid_search([0.2]),  # GAT层dropout率
+    "modeltype": tune.grid_search(["gat2layer"]),  # rq2
+    "gnntype": tune.grid_search(["gat"]),  # rq3
+    "loss": tune.grid_search(["ce"]),  # rq4
+    "gamma": tune.grid_search([2]),  # Focal Loss参数gamma
+    "scea": tune.grid_search([0.5]),  # SCEA参数（仅对loss="sce"有效）
+    "gtype": tune.grid_search(["pdg+raw"]),  # rq5
+    "batch_size": tune.grid_search([256]),  # 批次大小
+    "multitask": tune.grid_search(["linemethod"]),  # 多任务类型
+    "splits": tune.grid_search(["default"]),  # 数据集分割方式
+    "lr": tune.grid_search([1e-4]),  # 学习率
+    "nsampling": tune.grid_search([False]),  # 是否使用邻居采样
+    "mlp_layers": tune.grid_search([8]),
+    "use_bn": tune.grid_search([False]),
 }
 
 # 样本大小设置（-1表示使用所有样本）
@@ -56,7 +51,7 @@ analysis = tune.run(
     mode="min",  # 优化模式（最小化验证损失）
     config=config,  # 超参数配置
     num_samples=1,  # 试验次数
-    name="tune_linevd_test",  # 实验名称
+    name="tune_linevd_baseline",  # 实验名称
     storage_path=sp,  # 本地保存目录
     keep_checkpoints_num=1,  # 保留的检查点数量（仅保留最佳模型）
     checkpoint_score_attr="min-val_loss",  # 检查点评分属性

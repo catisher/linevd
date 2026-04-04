@@ -125,6 +125,10 @@ python sastvd/linevd/plot_first_rates.py
 
 scp D:\repositories\graphcodebert-base.zip wmy@10.2.0.11:/home/wmy/linevd/storage/external/
 
+## Baseline 实验
+nohup python sastvd/scripts/baseline.py > baseline.log 2>&1 &
+tail -f baseline.log
+
 ## RQ 实验运行命令
 
 nohup python sastvd/scripts/myrq1.py > myrq1.log 2>&1 &

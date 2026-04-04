@@ -18,6 +18,7 @@ from ray.tune.integration.pytorch_lightning import (
     TuneReportCallback,
     TuneReportCheckpointCallback,
 )
+from pytorch_lightning.loggers import CSVLogger
 
 
 def train_linevd(
@@ -92,6 +93,10 @@ def train_linevd(
     metrics = ["train_loss", "val_loss", "val_auroc"]  # 要报告的指标
     raytune_callback = TuneReportCallback(metrics, on="validation_end")  # RayTune报告回调
     rtckpt_callback = TuneReportCheckpointCallback(metrics, on="validation_end")  # RayTune检查点回调
+    
+    # 配置CSV日志记录器，用于绘制训练曲线
+    csv_logger = CSVLogger(save_dir=savepath, name="csv_logs")
+    
     trainer = pl.Trainer(
         gpus=0,
         #gpus=1,
@@ -99,6 +104,7 @@ def train_linevd(
         default_root_dir=savepath,
         num_sanity_val_steps=0,  # 不进行验证前的 sanity 检查
         callbacks=[checkpoint_callback, raytune_callback, rtckpt_callback],
+        logger=csv_logger,  # 添加CSV日志记录器
         max_epochs=max_epochs,
     )
     trainer.fit(model, data)  # 启动训练流程

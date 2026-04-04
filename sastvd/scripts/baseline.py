@@ -14,13 +14,13 @@ os.environ["SLURM_JOB_NAME"] = "bash"
 # RQ1: CodeBERT vs GraphCodeBERT 配置
 config = {
     "hfeat": tune.choice([512]),  # 隐藏特征维度
-    "embtype": tune.choice(["graphcodebert"]),  # rq1
+    "embtype": tune.choice(["codebert"]),  # rq1
     "stmtweight": tune.choice([1]),  # 语句权重
     "hdropout": tune.choice([0.3]),  # 隐藏层dropout率
     "gatdropout": tune.choice([0.2]),  # GAT层dropout率
-    "modeltype": tune.choice(["gat2layer+residual"]),  # rq2
-    "gnntype": tune.choice(["gatv2"]),  # rq3
-    "loss": tune.choice(["focal"]),  # rq4
+    "modeltype": tune.choice(["gat2layer"]),  # rq2
+    "gnntype": tune.choice(["gat"]),  # rq3
+    "loss": tune.choice(["ce"]),  # rq4
     "gamma": tune.choice([2]),  # Focal Loss参数gamma
     "scea": tune.choice([0.5]),  # SCEA参数（仅对loss="sce"有效）
     "gtype": tune.choice(["pdg+raw"]),  # rq5
@@ -29,15 +29,15 @@ config = {
     "splits": tune.choice(["default"]),  # 数据集分割方式
     "lr": tune.choice([1e-4]),  # 学习率
     "nsampling": tune.choice([False]),  # 是否使用邻居采样
-    "mlp_layers": tune.choice([1]),
-    "use_bn": tune.choice([True]),
+    "mlp_layers": tune.choice([8]),
+    "use_bn": tune.choice([False]),
 }
 
 # 样本大小设置（-1表示使用所有样本）
 samplesz = -1
 run_id = svd.get_run_id()  # 获取运行ID
 # 设置保存路径
-sp = svd.get_dir(svd.processed_dir() / f"raytune_test_{samplesz}" / run_id)
+sp = svd.get_dir(svd.processed_dir() / f"raytune_baseline_{samplesz}" / run_id)
 
 # 创建可训练函数
 trainable = tune.with_parameters(

@@ -1,6 +1,3 @@
-"""
-测试代码
-"""
 
 import os
 
@@ -37,7 +34,7 @@ config = {
 samplesz = -1
 run_id = svd.get_run_id()  # 获取运行ID
 # 设置保存路径
-sp = svd.get_dir(svd.processed_dir() / f"raytune_test_{samplesz}" / run_id)
+sp = svd.get_dir(svd.processed_dir() / f"raytune_mybest_{samplesz}" / run_id)
 
 # 创建可训练函数
 trainable = tune.with_parameters(
@@ -56,7 +53,7 @@ analysis = tune.run(
     mode="min",  # 优化模式（最小化验证损失）
     config=config,  # 超参数配置
     num_samples=1,  # 试验次数
-    name="tune_linevd_test",  # 实验名称
+    name="tune_linevd_mybest",  # 实验名称
     storage_path=sp,  # 本地保存目录
     keep_checkpoints_num=1,  # 保留的检查点数量（仅保留最佳模型）
     checkpoint_score_attr="min-val_loss",  # 检查点评分属性

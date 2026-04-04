@@ -70,6 +70,9 @@ def train_linevd(
         gnntype=config["gnntype"],
         scea=config["scea"],
         lr=config["lr"],
+        mlp_layers=config["mlp_layers"],
+        use_bn=config["use_bn"],
+        gamma=config.get("gamma", 2.0),  # Focal Loss 聚焦参数，默认值为2.0
     )
 
     # 加载数据集

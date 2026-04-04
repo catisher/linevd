@@ -1,5 +1,6 @@
-"""
-测试代码
+"""RQ5: 对比不同损失函数。
+
+该脚本用于对比 CE（标准交叉熵）和 SCE（对称交叉熵）两种损失函数的效果。
 """
 
 import os
@@ -11,37 +12,38 @@ from ray import tune
 # 设置环境变量
 os.environ["SLURM_JOB_NAME"] = "bash"
 
-# RQ1: CodeBERT vs GraphCodeBERT 配置
+# RQ5: 对比不同损失函数配置
 config = {
     "hfeat": tune.choice([512]),  # 隐藏特征维度
-    "embtype": tune.choice(["graphcodebert"]),  # test
+    "embtype": tune.choice(["graphcodebert"]),  # 嵌入类型
     "stmtweight": tune.choice([1]),  # 语句权重
     "hdropout": tune.choice([0.3]),  # 隐藏层dropout率
     "gatdropout": tune.choice([0.2]),  # GAT层dropout率
-    "modeltype": tune.choice(["gat2layer"]),  # 模型类型
-    "gnntype": tune.choice(["gat", "gatv2", "gcn"]),  # GNN类型
-    "loss": tune.choice(["ce", "sce","focal"]),  # 损失函数类型    
+    "modeltype": tune.choice(["gat2layer"]),  # 模型架构
+    "gnntype": tune.choice(["gatv2"]),  # GNN类型
+    "loss": tune.choice(["ce", "sce","focal"]),  # 对比不同损失函数
     "gamma": tune.choice([0, 1, 2]),  # Focal Loss参数gamma
-    "scea": tune.choice([0.5]),  # SCEA参数
+    "scea": tune.choice([0.3, 0.5, 0.7]),  # SCEA参数（仅对loss="sce"有效）
     "gtype": tune.choice(["pdg+raw"]),  # 图类型
     "batch_size": tune.choice([256]),  # 批次大小
     "multitask": tune.choice(["linemethod"]),  # 多任务类型
     "splits": tune.choice(["default"]),  # 数据集分割方式
     "lr": tune.choice([1e-4]),  # 学习率
     "nsampling": tune.choice([False]),  # 是否使用邻居采样
+    "mlp_layers": tune.choice([1, 8]),
+    "use_bn": tune.choice([True]),
 }
 
 # 样本大小设置（-1表示使用所有样本）
 samplesz = -1
 run_id = svd.get_run_id()  # 获取运行ID
 # 设置保存路径
-sp = svd.get_dir(svd.processed_dir() / f"raytune_rq1_{samplesz}" / run_id)
+sp = svd.get_dir(svd.processed_dir() / f"raytune_rq5_{samplesz}" / run_id)
 
 # 创建可训练函数
 trainable = tune.with_parameters(
     lvdrun.train_linevd, 
-    #max_epochs=130,  # 最大训练轮数
-    max_epochs=100,
+    max_epochs=100,  # 最大训练轮数
     samplesz=samplesz, 
     savepath=sp
 )
@@ -53,8 +55,8 @@ analysis = tune.run(
     metric="val_loss",  # 优化指标
     mode="min",  # 优化模式（最小化验证损失）
     config=config,  # 超参数配置
-    num_samples=1,  # 试验次数
-    name="tune_linevd_test",  # 实验名称
+    num_samples=5,  # 试验次数
+    name="tune_linevd_rq5",  # 实验名称
     storage_path=sp,  # 本地保存目录
     keep_checkpoints_num=1,  # 保留的检查点数量（仅保留最佳模型）
     checkpoint_score_attr="min-val_loss",  # 检查点评分属性

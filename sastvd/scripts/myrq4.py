@@ -19,9 +19,10 @@ config = {
     "stmtweight": tune.choice([1]),  # 语句权重
     "hdropout": tune.choice([0.3]),  # 隐藏层dropout率
     "gatdropout": tune.choice([0.2]),  # GAT层dropout率
-    "modeltype": tune.choice(["gat2layer", "gcn2layer"]),  # 对比不同模型类型
-    "gnntype": tune.choice(["gat", "gcn"]),  # 对比不同GNN类型
+    "modeltype": tune.choice(["gat2layer"]),  # 模型架构
+    "gnntype": tune.choice(["gat", "gatv2", "gcn"]),  # 对比不同GNN类型
     "loss": tune.choice(["ce"]),  # 损失函数类型
+    "gamma": tune.choice([0, 1, 2]),  # Focal Loss参数gamma
     "scea": tune.choice([0.5]),  # SCEA参数
     "gtype": tune.choice(["pdg+raw"]),  # 图类型
     "batch_size": tune.choice([256]),  # 批次大小
@@ -29,6 +30,9 @@ config = {
     "splits": tune.choice(["default"]),  # 数据集分割方式
     "lr": tune.choice([1e-4]),  # 学习率
     "nsampling": tune.choice([False]),  # 是否使用邻居采样
+    "mlp_layers": tune.choice([1, 8]),
+    "use_bn": tune.choice([True]),
+
 }
 
 # 样本大小设置（-1表示使用所有样本）

@@ -28,7 +28,7 @@ import torch.nn.functional as F
 import torchmetrics
 from dgl.data.utils import load_graphs, save_graphs
 from dgl.dataloading import GraphDataLoader
-from dgl.nn.pytorch import GATConv, GraphConv
+from dgl.nn.pytorch import GATConv, GraphConv,GATv2Conv
 from sklearn.metrics import PrecisionRecallDisplay, precision_recall_curve
 from tqdm import tqdm
 
@@ -693,6 +693,9 @@ class LitGNN(pl.LightningModule):
         gnntype: str = "gat",
         random: bool = False,
         scea: float = 0.7,
+        mlp_layers: int = 8,
+        use_bn: bool = True,
+        gamma: float = 2.0,  # Focal Loss 聚焦参数
     ):
         """初始化LineVD模型。
         
@@ -704,17 +707,20 @@ class LitGNN(pl.LightningModule):
             methodlevel: 是否使用方法级别的表示
             nsampling: 是否使用邻居采样
             model: 模型类型，如"gat2layer"（2层GAT）或"gat1layer"（1层GAT）
-            loss: 损失函数类型，如"ce"（交叉熵）或"sce"（对称交叉熵）
+            loss: 损失函数类型，如"ce"（交叉熵）、"sce"（对称交叉熵）或"focal"（Focal Loss）
             multitask: 多任务类型，如"linemethod"（行级+方法级）或"line"（仅行级）
             stmtweight: 语句级别的权重（用于不平衡数据）
             gnntype: GNN类型，如"gat"（图注意力网络）或"gcn"（图卷积网络）
             random: 是否使用随机权重（用于基线比较）
             scea: SCE损失函数的α参数
+            gamma: Focal Loss的聚焦参数
         """
         super().__init__()
         self.lr = lr  # 保存学习率
         self.random = random  # 保存是否使用随机权重的标志
         self.save_hyperparameters()  # 保存超参数到检查点
+        self.mlp_layers = mlp_layers
+        self.use_bn = use_bn
 
         # 根据嵌入类型设置参数
         if self.hparams.embtype == "codebert":
@@ -733,17 +739,29 @@ class LitGNN(pl.LightningModule):
             self.EMBED = "_DOC2VEC"
 
         # Loss
-        if self.hparams.loss == "sce":
+        if self.hparams.loss == "focal":
+            # 使用Focal Loss处理类别不平衡
+            self.loss = svdloss.FocalLoss(
+                alpha=[1, self.hparams.stmtweight],
+                gamma=self.hparams.gamma
+            )
+            self.loss_f = svdloss.FocalLoss(
+                alpha=[1, self.hparams.stmtweight],
+                gamma=self.hparams.gamma
+            )
+        elif self.hparams.loss == "sce":
             # 使用对称交叉熵损失
             self.loss = svdloss.SCELoss(self.hparams.scea, 1 - self.hparams.scea)
-            self.loss_f = th.nn.CrossEntropyLoss()
+            #self.loss_f = th.nn.CrossEntropyLoss(weight=th.Tensor([1, self.hparams.stmtweight]))
+            # 原项目问题真多
+            self.loss_f = svdloss.SCELoss(self.hparams.scea, 1 - self.hparams.scea)
         else:
             # 使用标准交叉熵损失，设置类别权重
             self.loss = th.nn.CrossEntropyLoss(
                 weight=th.Tensor([1, self.hparams.stmtweight])
                 #weight=th.Tensor([1, self.hparams.stmtweight]).cuda()
             )
-            self.loss_f = th.nn.CrossEntropyLoss()
+            self.loss_f = th.nn.CrossEntropyLoss(weight=th.Tensor([1, self.hparams.stmtweight]))
 
         # 评估指标配置
         self.accuracy = torchmetrics.Accuracy(task="binary") # 准确率指标
@@ -771,6 +789,11 @@ class LitGNN(pl.LightningModule):
             gat_args = {"num_heads": numheads, "feat_drop": gatdrop}
             gnn1_args = {**gnn_args, **gat_args, "in_feats": embfeat}
             gnn2_args = {**gnn_args, **gat_args, "in_feats": hfeat * numheads}
+        elif self.hparams.gnntype == "gatv2":  # 添加 GATv2 支持
+            gnn = GATv2Conv
+            gat_args = {"num_heads": numheads, "feat_drop": gatdrop}
+            gnn1_args = {**gnn_args, **gat_args, "in_feats": embfeat}
+            gnn2_args = {**gnn_args, **gat_args, "in_feats": hfeat * numheads}
         elif self.hparams.gnntype == "gcn":
             gnn = GraphConv
             gnn1_args = {"in_feats": embfeat, **gnn_args}
@@ -784,7 +807,16 @@ class LitGNN(pl.LightningModule):
             # 第二层
             self.gat2 = gnn(**gnn2_args)
 
-            fcin = hfeat * numheads if self.hparams.gnntype == "gat" else hfeat
+            # 新增 BN 层（根据配置决定是否使用）
+            if self.use_bn:
+                if self.hparams.gnntype == "gcn":
+                    self.bn1 = th.nn.BatchNorm1d(hfeat)
+                    self.bn2 = th.nn.BatchNorm1d(hfeat)
+                else:
+                    self.bn1 = th.nn.BatchNorm1d(hfeat * numheads)
+                    self.bn2 = th.nn.BatchNorm1d(hfeat * numheads)
+
+            fcin = hfeat * numheads if self.hparams.gnntype in ["gat", "gatv2"] else hfeat
             self.fc = th.nn.Linear(fcin, self.hparams.hfeat)
             self.fconly = th.nn.Linear(embfeat, self.hparams.hfeat)
             self.mlpdropout = th.nn.Dropout(self.hparams.mlpdropout)
@@ -802,10 +834,7 @@ class LitGNN(pl.LightningModule):
             self.fc_femb = th.nn.Linear(embfeat * 2, self.hparams.hfeat)
         
         # 在 __init__ 方法中添加
-        if "residual" in self.hparams.model:
-            self.use_residual = True
-        else:
-            self.use_residual = False
+        self.use_residual = "residual" in self.hparams.model
 
         # self.resrgat = ResRGAT(hdim=768, rdim=1, numlayers=1, dropout=0)
         # self.gcn = GraphConv(embfeat, hfeat)
@@ -820,11 +849,21 @@ class LitGNN(pl.LightningModule):
         self.fch = []
         for _ in range(8):
             # 添加 8 个隐藏层，每层都是全连接层
-            self.fch.append(th.nn.Linear(self.hparams.hfeat, self.hparams.hfeat))
-        # 将隐藏层包装为 ModuleList
-        self.hidden = th.nn.ModuleList(self.fch)
+            self.fch.append(th.nn.Linear(self.hparams.hfeat, self.hparams.hfeat))       
         # 隐藏层的 dropout
         self.hdropout = th.nn.Dropout(self.hparams.hdropout)
+        
+        if self.mlp_layers == 8:
+            # 将隐藏层包装为 ModuleList
+            self.hidden = th.nn.ModuleList(self.fch)
+        else :
+            # 8层MLP → 精简1层，训练更快
+            self.hidden = th.nn.Sequential(
+                th.nn.Linear(hfeat, hfeat),
+                th.nn.ELU(),
+                th.nn.Dropout(hdropout),
+            )
+
         # 输出层，2 个类别（安全/漏洞）
         self.fc2 = th.nn.Linear(self.hparams.hfeat, 2)
 
@@ -859,13 +898,13 @@ class LitGNN(pl.LightningModule):
                 h_func.shape[0], 2
             ).to(self.device)
 
-        # model: contains femb
-        ## 没用到，可忽略
-        if "+femb" in self.hparams.model:
-            # 如果模型包含函数嵌入，将代码嵌入和函数嵌入拼接
-            # 形状: [N, hfeat + func_feat_dim]
-            h = th.cat([h, h_func], dim=1)
-            h = F.elu(self.fc_femb(h))
+        # # model: contains femb
+        # ## 没用到，可忽略
+        # if "+femb" in self.hparams.model:
+        #     # 如果模型包含函数嵌入，将代码嵌入和函数嵌入拼接
+        #     # 形状: [N, hfeat + func_feat_dim]
+        #     h = th.cat([h, h_func], dim=1)
+        #     h = F.elu(self.fc_femb(h))
 
         # Transform h_func if wrong size
         ## 这个地方有点问题
@@ -876,27 +915,38 @@ class LitGNN(pl.LightningModule):
         if "gat" in self.hparams.model:
             if "gat2layer" in self.hparams.model:
                 # 2层GAT处理
-                h_residual = h  # 保存原始特征用于残差连接
-                
+                h_residual = h  # 保存原始特征用于残差连接               
                 h = self.gat(g, h)
                 # 第一层GAT
-                if self.hparams.gnntype == "gat":
-                    # 如果是GAT，需要将多头注意力的输出展平
-                    h = h.view(-1, h.size(1) * h.size(2))
+                if self.hparams.gnntype in ["gat", "gatv2"]:
+                    # 如果是GAT或GATv2，需要将多头注意力的输出展平
+                    #h = h.view(-1, h.size(1) * h.size(2))
+                    h = h.flatten(1)
+                
+                # 应用BN层（如果启用）
+                if self.use_bn:
+                    h = self.bn1(h)
+                    h = F.elu(h)
                 
                 # 添加残差连接（如果启用且维度匹配）
-                if "residual" in self.hparams.model and h.shape == h_residual.shape:
+                if self.use_residual and h.shape == h_residual.shape:
                     h = h + h_residual
                 
                 h_residual2 = h  # 保存第一层输出用于第二层残差连接
                 
                 h = self.gat2(g2, h) # 第二层GAT
-                if self.hparams.gnntype == "gat":
+                if self.hparams.gnntype in ["gat", "gatv2"]:
                     # 再次展平多头注意力的输出
-                    h = h.view(-1, h.size(1) * h.size(2))
+                    #h = h.view(-1, h.size(1) * h.size(2))
+                    h = h.flatten(1)
+                
+                # 应用BN层（如果启用）
+                if self.use_bn:
+                    h = self.bn2(h)
+                    h = F.elu(h)
                 
                 # 添加残差连接（如果启用且维度匹配）
-                if "residual" in self.hparams.model and h.shape == h_residual2.shape:
+                if self.use_residual and h.shape == h_residual2.shape:
                     h = h + h_residual2
                     
             elif "gat1layer" in self.hparams.model:
@@ -904,12 +954,18 @@ class LitGNN(pl.LightningModule):
                 h_residual = h  # 保存原始特征用于残差连接
                 
                 h = self.gat(g2, h) # 单层GAT
-                if self.hparams.gnntype == "gat":
+                if self.hparams.gnntype in ["gat", "gatv2"]:
                     # 展平多头注意力的输出
-                    h = h.view(-1, h.size(1) * h.size(2))
+                    #h = h.view(-1, h.size(1) * h.size(2))
+                    h = h.flatten(1)
+                
+                # 应用BN层（如果启用）
+                if self.use_bn:
+                    h = self.bn1(h)
+                    h = F.elu(h)
                 
                 # 添加残差连接（如果启用且维度匹配）
-                if "residual" in self.hparams.model and h.shape == h_residual.shape:
+                if self.use_residual and h.shape == h_residual.shape:
                     h = h + h_residual
             # 通过全连接层和激活函数处理
             h = self.mlpdropout(F.elu(self.fc(h)))
@@ -935,16 +991,24 @@ class LitGNN(pl.LightningModule):
             h_func = self.mlpdropout(F.elu(self.fconly(h_func)))# 处理函数嵌入
 
         # Hidden layers
-        for idx, hlayer in enumerate(self.hidden):
-            # 遍历8个隐藏层
-            h = self.hdropout(F.elu(hlayer(h))) # 处理行级特征
-            h_func = self.hdropout(F.elu(hlayer(h_func))) # 处理函数级特征
+        # 根据MLP类型选择前向传播方式
+        if self.mlp_layers == 8:
+            # 8层MLP：使用ModuleList循环
+            for hlayer in self.hidden:
+                h = self.hdropout(F.elu(hlayer(h)))
+                h_func = self.hdropout(F.elu(hlayer(h_func)))
+        else:
+            # 1层MLP：使用Sequential
+            h = self.hidden(h)
+            h_func = self.hidden(h_func)
+
         h = self.fc2(h) # 行级预测输出
         h_func = self.fc2(
             h_func
         )  ## 方法级预测输出，与行级预测共享权重
 
         if self.hparams.methodlevel:
+            # 这里默认false，因为方法级预测模式下不需要行级特征
             # 如果是方法级预测模式
             g.ndata["h"] = h  # 将行级特征存储到图中
             return dgl.mean_nodes(g, "h"), None  # 返回图的平均特征作为方法级预测
@@ -985,12 +1049,12 @@ class LitGNN(pl.LightningModule):
         logits, labels, labels_func = self.shared_step(
             batch
         )  
-        # 调用 shared_step 方法获取预测结果和标签
-        # print(logits.argmax(1), labels_func)  # 调试用，打印预测结果和方法级标签
-        loss1 = self.loss(logits[0], labels)   # 计算行级预测的损失
-        if not self.hparams.methodlevel:
-            loss2 = self.loss_f(logits[1], labels_func)   # 计算方法级预测的损失
-        # Need some way of combining the losses for multitask training
+        # # 调用 shared_step 方法获取预测结果和标签
+        # # print(logits.argmax(1), labels_func)  # 调试用，打印预测结果和方法级标签
+        # loss1 = self.loss(logits[0], labels)   # 计算行级预测的损失
+        # if not self.hparams.methodlevel:  #默认行级预测模式 这里是True
+        #     loss2 = self.loss_f(logits[1], labels_func)   # 计算方法级预测的损失
+        # # Need some way of combining the losses for multitask training
         # 多任务训练的损失组合方式
         loss = 0 # 初始化总损失
         if "line" in self.hparams.multitask:
@@ -1003,14 +1067,13 @@ class LitGNN(pl.LightningModule):
             loss += loss2   # 加到总损失中
         # 选择要用于评估的预测结果
         # 如果多任务模式是纯方法级，则使用方法级预测，否则使用行级预测
-        logits = logits[1] if self.hparams.multitask == "method" else logits[0]
-        pred = F.softmax(logits, dim=1)
-        # 对预测结果应用 softmax，得到概率分布
-        # 取最大概率的类别作为预测结果
-
+        eval_logits = logits[1] if self.hparams.multitask == "method" else logits[0]
+        #行级预测
+        pred = F.softmax(eval_logits, dim=1)
         acc = self.accuracy(pred.argmax(1), labels)# 计算准确率
         if not self.hparams.methodlevel:
-            acc_func = self.accuracy(logits.argmax(1), labels_func)
+            pred_func = F.softmax(logits[1], dim=1)
+            acc_func = self.accuracy(pred_func.argmax(1), labels_func)
             # 计算方法级准确率
         mcc = self.mcc(pred.argmax(1), labels)
         # 计算 Matthews 相关系数
@@ -1023,14 +1086,11 @@ class LitGNN(pl.LightningModule):
         else:
             # 否则，batch_size 是图中节点的数量
             batch_size = batch.number_of_nodes()
-        #   记录训练损失到日志
+
         self.log("train_loss", loss, on_epoch=True, prog_bar=True, logger=True, batch_size=batch_size)
-        # 记录训练准确率到日志
         self.log("train_acc", acc, prog_bar=True, logger=True, batch_size=batch_size)
         if not self.hparams.methodlevel:
-            # 记录方法级准确率到日志
             self.log("train_acc_func", acc_func, prog_bar=True, logger=True, batch_size=batch_size)
-        # 记录 Matthews 相关系数到日志
         self.log("train_mcc", mcc, prog_bar=True, logger=True, batch_size=batch_size)
         return loss # 返回总损失，用于反向传播
 
@@ -1044,8 +1104,8 @@ class LitGNN(pl.LightningModule):
             # 如果多任务包含行级预测，计算行级损失
             loss1 = self.loss(logits[0], labels)
             loss += loss1  # 加到总损失中
-        if "method" in self.hparams.multitask:
-            # 如果多任务包含方法级预测，计算方法级损失
+        if "method" in self.hparams.multitask and not self.hparams.methodlevel:
+            # 如果多任务包含方法级预测且不是纯方法级模式，计算方法级损失
             loss2 = self.loss_f(logits[1], labels_func)
             loss += loss2  # 加到总损失中
 
@@ -1066,7 +1126,7 @@ class LitGNN(pl.LightningModule):
             batch_size = batch.number_of_nodes()
 
         self.log("val_loss", loss, on_step=True, prog_bar=True, logger=True, batch_size=batch_size)
-        self.auroc.update(logits[:, 1], labels)
+        self.auroc.update(pred[:, 1], labels)
         self.log("val_auroc", self.auroc, prog_bar=True, logger=True, batch_size=batch_size)
         self.log("val_acc", acc, prog_bar=True, logger=True, batch_size=batch_size)
         self.log("val_mcc", mcc, prog_bar=True, logger=True, batch_size=batch_size)

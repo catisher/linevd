@@ -124,4 +124,22 @@ python sastvd/linevd/count_bigvul.py
 python sastvd/linevd/plot_first_rates.py
 
 scp D:\repositories\graphcodebert-base.zip wmy@10.2.0.11:/home/wmy/linevd/storage/external/
- 
+
+## RQ 实验运行命令
+
+nohup python sastvd/scripts/myrq1.py > myrq1.log 2>&1 &
+nohup python sastvd/scripts/myrq2.py > myrq2.log 2>&1 &
+nohup python sastvd/scripts/myrq3.py > myrq3.log 2>&1 &
+nohup python sastvd/scripts/myrq4.py > myrq4.log 2>&1 &
+nohup python sastvd/scripts/myrq5.py > myrq5.log 2>&1 &
+
+## 查看日志
+tail -f myrq1.log
+tail -f myrq2.log
+tail -f myrq3.log
+tail -f myrq4.log
+tail -f myrq5.log
+
+## 测试实验
+nohup python sastvd/scripts/test.py > test.log 2>&1 &
+tail -f test.log

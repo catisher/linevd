@@ -245,16 +245,19 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         for channel_id in range(7):
             mask = (edge_types == channel_id)
             
-            if mask.sum() > 0:
-                # 有边：构建子图
+            if mask.sum() &gt; 0:
+                # 有边：构建子图并添加自环
                 src, dst = g.edges()
                 src = src[mask]
                 dst = dst[mask]
                 sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                sub_g = dgl.add_self_loop(sub_g)
                 subgraphs.append(sub_g)
             else:
-                # 无边：添加None占位符
-                subgraphs.append(None)
+                # 即使没有该类型边，也创建只有自环的子图
+                empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
+                empty_g = dgl.add_self_loop(empty_g)
+                subgraphs.append(empty_g)
         
         # 注册到MultiChannelGNN的全局缓存
         MultiChannelGNN.register_subgraphs(g, subgraphs)
@@ -410,16 +413,18 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             for channel_id in range(7):
                 mask = (edge_types == channel_id)
                 
-                if mask.sum() > 0:
-                    # 有边：构建子图
+                if mask.sum() &gt; 0:
+                    # 有边：构建子图并添加自环
                     src, dst = g.edges()
                     src = src[mask]
                     dst = dst[mask]
                     sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                    sub_g = dgl.add_self_loop(sub_g)
                     subgraphs.append(sub_g)
                 else:
-                    # 无边：添加空图作为占位符
+                    # 无边：添加空图作为占位符，但也要加自环
                     empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
+                    empty_g = dgl.add_self_loop(empty_g)
                     subgraphs.append(empty_g)
             
             # 保存子图到单独的文件（区分codebert）
@@ -568,16 +573,18 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             for channel_id in range(7):
                 mask = (edge_types == channel_id)
                 
-                if mask.sum() > 0:
-                    # 有边：构建子图
+                if mask.sum() &gt; 0:
+                    # 有边：构建子图并添加自环
                     src, dst = g.edges()
                     src = src[mask]
                     dst = dst[mask]
                     sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                    sub_g = dgl.add_self_loop(sub_g)
                     subgraphs.append(sub_g)
                 else:
-                    # 无边：添加空图作为占位符
+                    # 无边：添加空图作为占位符，但也要加自环
                     empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
+                    empty_g = dgl.add_self_loop(empty_g)
                     subgraphs.append(empty_g)
             
             # 保存子图到单独的文件（区分graphcodebert）
@@ -917,14 +924,18 @@ class MultiChannelGNN(th.nn.Module):
         for channel_id in range(self.num_channels):
             mask = (edge_types == channel_id)
             
-            if mask.sum() > 0:
+            if mask.sum() &gt; 0:
                 src, dst = g.edges()
                 src = src[mask]
                 dst = dst[mask]
                 sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                sub_g = dgl.add_self_loop(sub_g)
                 subgraphs.append(sub_g)
             else:
-                subgraphs.append(None)
+                # 即使没有该类型边，也创建只有自环的子图
+                empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
+                empty_g = dgl.add_self_loop(empty_g)
+                subgraphs.append(empty_g)
         
         return subgraphs
     
@@ -959,17 +970,8 @@ class MultiChannelGNN(th.nn.Module):
         # 遍历所有通道
         for channel_id in range(self.num_channels):
             sub_g = subgraphs[channel_id]
-            
-            if sub_g is not None and sub_g.number_of_edges() > 0:
-                # 有边：使用子图
-                out = self.channels[channel_id](sub_g, h)
-            else:
-                # 无边：输出零向量
-                if self.gnntype in ["gat", "gatv2"]:
-                    out = th.zeros(h.shape[0], self.channels[0]._num_heads, self.out_feats).to(h.device)
-                else:
-                    out = th.zeros(h.shape[0], self.out_feats).to(h.device)
-            
+            # 所有子图都有自环，直接使用
+            out = self.channels[channel_id](sub_g, h)
             channel_outputs.append(out)
         
         # 步骤2: 拼接所有通道的输出

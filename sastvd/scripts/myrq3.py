@@ -1,7 +1,4 @@
-"""RQ3: 不同图结构 对比实验。
 
-该脚本用于对比 CFG+DFG、DFG only 和 CFG only 三种图结构的效果。
-"""
 
 import os
 
@@ -20,11 +17,11 @@ config = {
     "hdropout": tune.grid_search([0.3]),  # 隐藏层dropout率
     "gatdropout": tune.grid_search([0.2]),  # GAT层dropout率
     "modeltype": tune.grid_search(["gat2layer+residual"]),  # 模型类型
-    "gnntype": tune.grid_search(["gat"]),  # GNN类型
-    "loss": tune.grid_search(["ce"]),  # 损失函数类型
+    "gnntype": tune.grid_search(["gat", "gatv2", "gcn"]),  # GNN类型
+    "loss": tune.grid_search(["focal"]),  # 损失函数类型
     "gamma": tune.grid_search([2]),  # Focal Loss参数gamma
     "scea": tune.grid_search([0.5]),  # SCEA参数
-    "gtype": tune.grid_search(["pdg+raw", "cfg+raw", "dfg+raw"]),  # 对比不同图结构
+    "gtype": tune.grid_search(["pdg+raw"]),  # 对比不同图结构
     "batch_size": tune.grid_search([256]),  # 批次大小
     "multitask": tune.grid_search(["linemethod"]),  # 多任务类型
     "splits": tune.grid_search(["default"]),  # 数据集分割方式

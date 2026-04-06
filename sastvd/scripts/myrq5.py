@@ -21,7 +21,7 @@ config = {
     "gatdropout": tune.grid_search([0.2]),  # GAT层dropout率
     "modeltype": tune.grid_search(["gat2layer+residual"]),  # 模型架构
     "gnntype": tune.grid_search(["gatv2"]),  # GNN类型
-    "loss": tune.grid_search(["ce", "sce", "focal"]),  # 对比不同损失函数
+    "loss": tune.grid_search(["focal"]),  # 对比不同损失函数
     "gamma": tune.grid_search([2]),  # Focal Loss参数gamma
     "scea": tune.grid_search([0.5]),  # SCEA参数（仅对loss="sce"有效）
     "gtype": tune.grid_search(["pdg+raw"]),  # 图类型

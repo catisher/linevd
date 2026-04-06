@@ -31,7 +31,7 @@ config = {
     "nsampling": tune.choice([False]),  # 是否使用邻居采样
     "mlp_layers": tune.choice([1]),
     "use_bn": tune.choice([True]),
-    "use_multichannel": tune.choice([False]),  # 不使用多通道 GNN
+    "use_multichannel": tune.choice([True]),  # 使用多通道 GNN
     "num_edge_types": tune.choice([7]),  # 边类型数量
 }
 

@@ -23,7 +23,7 @@ config = {
     "loss": tune.choice(["focal"]),  # rq4
     "gamma": tune.choice([2]),  # Focal Loss参数gamma
     "scea": tune.choice([0.5]),  # SCEA参数（仅对loss="sce"有效）
-    "gtype": tune.choice(["pdg+raw"]),  # rq5
+    "gtype": tune.choice(["all"]),  # rq5
     "batch_size": tune.choice([256]),  # 批次大小
     "multitask": tune.choice(["linemethod"]),  # 多任务类型
     "splits": tune.choice(["default"]),  # 数据集分割方式
@@ -31,6 +31,8 @@ config = {
     "nsampling": tune.choice([False]),  # 是否使用邻居采样
     "mlp_layers": tune.choice([1]),
     "use_bn": tune.choice([True]),
+    "use_multichannel": tune.choice([False]),  # 不使用多通道 GNN
+    "num_edge_types": tune.choice([7]),  # 边类型数量
 }
 
 # 样本大小设置（-1表示使用所有样本）

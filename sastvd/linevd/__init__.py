@@ -146,10 +146,22 @@ def feature_extraction(_id, graph_type="cfgcdg", return_nodes=False):
     
     # 创建边类型到整数的映射（按字母顺序排序后编号）
     # 例如: {"AST": 0, "CFG": 1, "DDG": 2}
-    d = dict([(y, x) for x, y in enumerate(sorted(set(etypes)))])
+    #d = dict([(y, x) for x, y in enumerate(sorted(set(etypes)))])
+    # 固定的边类型映射（用于多通道 GNN）
+    # 确保不同 gtype 下同一边类型的编码一致
+    EDGE_TYPE_MAP = {
+        "AST": 0,           # 抽象语法树边
+        "CFG": 1,           # 控制流图边
+        "CDG": 2,           # 控制依赖图边
+        "REACHING_DEF": 3,  # 到达定义边（数据流分析）
+        "DDG": 4,           # 数据依赖图边
+        "REF": 5,           # 引用关系边
+        "EVAL_TYPE": 6,     # 类型求值边
+    }
     
     # 将边类型转换为整数编码
-    etypes = [d[i] for i in etypes]
+    #etypes = [d[i] for i in etypes]
+    etypes = [EDGE_TYPE_MAP.get(i, 0) for i in etypes]
 
     # 步骤6: 构建代码文本表示
     # 如果图类型不包含"+raw"，则在代码前添加函数名和节点名
@@ -181,12 +193,13 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
     支持多种图类型（如pdg、cfgcdg）和特征类型（如codebert、glove、doc2vec）。
     """
 
-    def __init__(self, gtype="pdg", feat="all", **kwargs):
+    def __init__(self, gtype="pdg", feat="all", use_multichannel=False, **kwargs):
         """初始化LineVD版本的BigVul数据集。
         
         参数:
             gtype: 图类型，如"pdg"（程序依赖图）或"cfgcdg"（控制流图+数据依赖图）
             feat: 使用的特征类型，如"all"（所有特征）、"codebert"（CodeBERT特征）、"graphcodebert"（Graphcodebert特征）、"glove"或"doc2vec"
+            use_multichannel: 是否使用多通道GNN，如果为True则预构建子图
             **kwargs: 传递给父类的其他参数
         """
         # 调用父类 BigVulDataset 的初始化方法，传递所有参数
@@ -208,6 +221,43 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         self.d2v = svdd2v.D2V(svd.processed_dir() / "bigvul/d2v_False")
         # 保存特征类型（如 "all"、"codebert"、"graphcodebert"、""glove"、"doc2vec"），控制使用哪种特征
         self.feat = feat
+        # 保存是否使用多通道GNN的配置
+        self.use_multichannel = use_multichannel
+
+    def _build_and_register_subgraphs(self, g):
+        """预构建子图并注册到MultiChannelGNN的全局缓存。
+        
+        参数:
+            g: DGL图对象
+        """
+        # 如果不使用多通道GNN，则不处理子图
+        if not self.use_multichannel:
+            return
+        
+        # 检查是否有边类型信息
+        if "_ETYPE" not in g.edata:
+            return
+        
+        edge_types = g.edata["_ETYPE"]
+        subgraphs = []
+        
+        # 为每个通道构建子图
+        for channel_id in range(7):
+            mask = (edge_types == channel_id)
+            
+            if mask.sum() > 0:
+                # 有边：构建子图
+                src, dst = g.edges()
+                src = src[mask]
+                dst = dst[mask]
+                sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                subgraphs.append(sub_g)
+            else:
+                # 无边：添加None占位符
+                subgraphs.append(None)
+        
+        # 注册到MultiChannelGNN的全局缓存
+        MultiChannelGNN.register_subgraphs(g, subgraphs)
 
     def item(self, _id, codebert=None, graphcodebert=None):
         """获取并缓存指定ID的代码图数据项。
@@ -235,6 +285,21 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         if os.path.exists(savedir):
             # 从缓存目录加载图数据
             g = load_graphs(str(savedir))[0][0]
+            
+            # 如果使用多通道GNN，尝试从磁盘加载预构建的子图
+            if self.use_multichannel:
+                subgraph_dir = svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}"
+                subgraph_path = subgraph_dir / f"{_id}.pt"
+                
+                if os.path.exists(subgraph_path):
+                    # 从磁盘加载子图
+                    subgraphs = load_graphs(str(subgraph_path))[0]
+                    # 注册到全局缓存
+                    MultiChannelGNN.register_subgraphs(g, subgraphs)
+                else:
+                    # 没有预构建的子图，动态构建并缓存
+                    self._build_and_register_subgraphs(g)
+            
             # 注释掉的代码：将函数级漏洞标签复制到所有节点
             # g.ndata["_FVULN"] = g.ndata["_VULN"].max().repeat((g.number_of_nodes()))
             # 注释掉的代码：移除 SAST 工具的标签
@@ -327,6 +392,42 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         # 加载方法级嵌入并复制到所有节点
         g.ndata["_FUNC_EMB"] = th.load(emb_path, weights_only=True).repeat((g.number_of_nodes(), 1))
         
+        # 为图添加自环边
+        g = dgl.add_self_loop(g)
+        
+        # 添加图的唯一标识（用于子图缓存）
+        g.ndata["_ID"] = th.tensor([_id] * g.number_of_nodes()).long()
+        
+        # 将处理后的图保存到缓存目录
+        save_graphs(str(savedir), [g])
+        
+        # 如果使用多通道GNN，预构建并保存子图到磁盘
+        if self.use_multichannel:
+            # 为每个边类型构建单独的子图
+            edge_types = g.edata["_ETYPE"]
+            subgraphs = []
+            
+            for channel_id in range(7):
+                mask = (edge_types == channel_id)
+                
+                if mask.sum() > 0:
+                    # 有边：构建子图
+                    src, dst = g.edges()
+                    src = src[mask]
+                    dst = dst[mask]
+                    sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                    subgraphs.append(sub_g)
+                else:
+                    # 无边：添加空图作为占位符
+                    empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
+                    subgraphs.append(empty_g)
+            
+            # 保存子图到单独的文件
+            subgraph_dir = svd.get_dir(svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}")
+            subgraph_path = subgraph_dir / f"{_id}.pt"
+            save_graphs(str(subgraph_path), subgraphs)
+        return g
+        
     def item_graphcodebert(self, _id, graphcodebert=None):
         """缓存单个数据项的 GraphCodeBERT 代码图。
         """
@@ -338,6 +439,21 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         if os.path.exists(savedir):
             # 从缓存目录加载图数据
             g = load_graphs(str(savedir))[0][0]
+            
+            # 如果使用多通道GNN，尝试从磁盘加载预构建的子图
+            if self.use_multichannel:
+                subgraph_dir = svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}"
+                subgraph_path = subgraph_dir / f"{_id}.pt"
+                
+                if os.path.exists(subgraph_path):
+                    # 从磁盘加载子图
+                    subgraphs = load_graphs(str(subgraph_path))[0]
+                    # 注册到全局缓存
+                    MultiChannelGNN.register_subgraphs(g, subgraphs)
+                else:
+                    # 没有预构建的子图，动态构建并缓存
+                    self._build_and_register_subgraphs(g)
+            
             # 检查图中是否包含 GraphCodeBERT 嵌入
             if "_GRAPHCODEBERT" in g.ndata:
                 # 如果使用 GraphCodeBERT 特征，移除其他特征以节省内存
@@ -436,8 +552,39 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
 
         # 为图添加自环边
         g = dgl.add_self_loop(g)
+        
+        # 添加图的唯一标识（用于子图缓存）
+        g.ndata["_ID"] = th.tensor([_id] * g.number_of_nodes()).long()
+        
         # 将处理后的图保存到缓存目录
         save_graphs(str(savedir), [g])
+        
+        # 如果使用多通道GNN，预构建并保存子图到磁盘
+        if self.use_multichannel:
+            # 为每个边类型构建单独的子图
+            edge_types = g.edata["_ETYPE"]
+            subgraphs = []
+            
+            for channel_id in range(7):
+                mask = (edge_types == channel_id)
+                
+                if mask.sum() > 0:
+                    # 有边：构建子图
+                    src, dst = g.edges()
+                    src = src[mask]
+                    dst = dst[mask]
+                    sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                    subgraphs.append(sub_g)
+                else:
+                    # 无边：添加空图作为占位符
+                    empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
+                    subgraphs.append(empty_g)
+            
+            # 保存子图到单独的文件
+            subgraph_dir = svd.get_dir(svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}")
+            subgraph_path = subgraph_dir / f"{_id}.pt"
+            save_graphs(str(subgraph_path), subgraphs)
+        
         # 返回图对象
         return g
     
@@ -573,6 +720,7 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
         gtype: str = "cfgcdg",
         splits: str = "default",
         feat: str = "all",
+        use_multichannel: bool = False,
     ):
         """初始化BigVul数据集的数据模块。
         
@@ -585,9 +733,16 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
             gtype: 图类型，如"cfgcdg"或"pdg"
             splits: 数据集分割方式，如"default"或"crossproject"
             feat: 使用的特征类型，如"all"、"codebert"、"graphcodebert"、"glove"或"doc2vec"
+            use_multichannel: 是否使用多通道GNN，如果为True则预构建子图
         """
         super().__init__()
-        dataargs = {"sample": sample, "gtype": gtype, "splits": splits, "feat": feat}
+        dataargs = {
+            "sample": sample, 
+            "gtype": gtype, 
+            "splits": splits, 
+            "feat": feat,
+            "use_multichannel": use_multichannel,
+        }
         self.train = BigVulDatasetLineVD(partition="train", **dataargs)
         self.val = BigVulDatasetLineVD(partition="val", **dataargs)
         self.test = BigVulDatasetLineVD(partition="test", **dataargs)
@@ -670,6 +825,179 @@ class BigVulDatasetLineVDDataModule(pl.LightningDataModule):
 
 
 # %%
+class MultiChannelGNN(th.nn.Module):
+    """多通道图神经网络模块。
+    """
+    
+    # 类级别的全局缓存，所有实例共享
+    # key: 图的ID，value: 子图列表
+    _global_subgraph_cache = {}
+    
+    def __init__(
+        self,
+        in_feats: int,
+        out_feats: int,
+        num_heads: int = 4,
+        dropout: float = 0.2,
+        num_channels: int = 7,
+        gnntype: str = "gat",
+    ):
+        super().__init__()
+        self.num_channels = num_channels
+        self.gnntype = gnntype
+        
+        # 为每个通道创建独立的GNN层
+        # 每个通道专门处理一种边类型
+        self.channels = th.nn.ModuleList()
+        for _ in range(num_channels):
+            if gnntype == "gat":
+                # GAT: 图注意力网络，使用注意力机制聚合邻居特征
+                self.channels.append(GATConv(
+                    in_feats=in_feats,
+                    out_feats=out_feats,
+                    num_heads=num_heads,
+                    feat_drop=dropout,
+                ))
+            elif gnntype == "gatv2":
+                # GATv2: 改进的GAT，动态注意力机制
+                self.channels.append(GATv2Conv(
+                    in_feats=in_feats,
+                    out_feats=out_feats,
+                    num_heads=num_heads,
+                    feat_drop=dropout,
+                ))
+            else:
+                # GCN: 图卷积网络，简单的邻居聚合
+                self.channels.append(GraphConv(
+                    in_feats=in_feats,
+                    out_feats=out_feats,
+                ))
+        
+        # 融合层：将所有通道的输出拼接后降维
+        # GAT/GATv2: 在特征维度拼接，输入维度 = out_feats * num_channels，输出维度 = out_feats
+        # GCN: 输入维度 = out_feats * num_channels，输出维度 = out_feats
+        if gnntype in ["gat", "gatv2"]:
+            # GAT/GATv2: 每个通道输出 [N, num_heads, out_feats]
+            # 拼接后: [N, num_heads, out_feats * num_channels]
+            # 融合后: [N, num_heads, out_feats]
+            self.fusion = th.nn.Linear(out_feats * num_channels, out_feats)
+        else:
+            # GCN: 每个通道输出 [N, out_feats]
+            # 拼接后: [N, out_feats * num_channels]
+            # 融合后: [N, out_feats]
+            self.fusion = th.nn.Linear(out_feats * num_channels, out_feats)
+        
+        self.out_feats = out_feats
+    
+    @classmethod
+    def register_subgraphs(cls, g, subgraphs: list):
+        """注册子图到全局缓存。
+        
+        参数:
+            g: DGL图对象
+            subgraphs: 子图列表，每个元素对应一个通道的子图
+        """
+        # 获取图的唯一ID：优先使用 _ID 节点数据
+        if "_ID" in g.ndata:
+            graph_id = int(g.ndata["_ID"][0].item())
+        else:
+            graph_id = id(g)
+        
+        cls._global_subgraph_cache[graph_id] = subgraphs
+    
+    @classmethod
+    def clear_cache(cls):
+        """清空全局缓存。"""
+        cls._global_subgraph_cache.clear()
+    
+    def _build_subgraphs(self, g):
+        edge_types = g.edata["_ETYPE"]
+        subgraphs = []
+        
+        for channel_id in range(self.num_channels):
+            mask = (edge_types == channel_id)
+            
+            if mask.sum() > 0:
+                src, dst = g.edges()
+                src = src[mask]
+                dst = dst[mask]
+                sub_g = dgl.graph((src, dst), num_nodes=g.number_of_nodes())
+                subgraphs.append(sub_g)
+            else:
+                subgraphs.append(None)
+        
+        return subgraphs
+    
+    def forward(self, g, h):
+        """前向传播：处理多通道图数据。 
+        参数:
+            g: DGL图对象，包含所有边（可能带有预构建的子图）
+            h: 节点特征张量，形状 [num_nodes, in_feats]
+        返回:
+            fused: 融合后的节点特征
+                - GAT/GATv2: [num_nodes, num_heads, out_feats]
+                - GCN: [num_nodes, out_feats]
+                输出格式与单通道GNN完全一致
+        """
+        # 获取图的唯一ID：优先使用 _ID 节点数据（确保即使重新加载也能匹配）
+        if "_ID" in g.ndata:
+            graph_id = int(g.ndata["_ID"][0].item())
+        else:
+            graph_id = id(g)
+        
+        # 检查全局缓存
+        if graph_id in self._global_subgraph_cache:
+            # 使用缓存的子图
+            subgraphs = self._global_subgraph_cache[graph_id]
+        else:
+            # 没有缓存，动态构建并缓存
+            subgraphs = self._build_subgraphs(g)
+            self._global_subgraph_cache[graph_id] = subgraphs
+        
+        channel_outputs = []
+        
+        # 遍历所有通道
+        for channel_id in range(self.num_channels):
+            sub_g = subgraphs[channel_id]
+            
+            if sub_g is not None and sub_g.number_of_edges() > 0:
+                # 有边：使用子图
+                out = self.channels[channel_id](sub_g, h)
+            else:
+                # 无边：输出零向量
+                if self.gnntype in ["gat", "gatv2"]:
+                    out = th.zeros(h.shape[0], self.channels[0]._num_heads, self.out_feats).to(h.device)
+                else:
+                    out = th.zeros(h.shape[0], self.out_feats).to(h.device)
+            
+            channel_outputs.append(out)
+        
+        # 步骤2: 拼接所有通道的输出
+        if self.gnntype in ["gat", "gatv2"]:
+            # GAT/GATv2: 在最后一个维度（特征维度）拼接
+            # 形状: [num_nodes, num_heads, out_feats * num_channels]
+            combined = th.cat(channel_outputs, dim=2)
+            
+            # 步骤3: 通过融合层降维
+            # 需要调整形状以适配Linear层
+            # combined: [N, num_heads, out_feats * num_channels]
+            # 融合: [N, num_heads, out_feats]
+            N, num_heads, _ = combined.shape
+            combined_reshaped = combined.view(N * num_heads, -1)  # [N*num_heads, out_feats*num_channels]
+            fused_reshaped = self.fusion(combined_reshaped)  # [N*num_heads, out_feats]
+            fused = fused_reshaped.view(N, num_heads, -1)  # [N, num_heads, out_feats]
+        else:
+            # GCN: 在特征维度拼接
+            # 形状: [num_nodes, out_feats * num_channels]
+            combined = th.cat(channel_outputs, dim=1)
+            
+            # 步骤3: 通过融合层降维
+            # 形状: [num_nodes, out_feats]
+            fused = self.fusion(combined)
+        
+        return fused
+
+
 class LitGNN(pl.LightningModule):
     """LineVD模型的PyTorch Lightning实现。
     """
@@ -696,6 +1024,8 @@ class LitGNN(pl.LightningModule):
         mlp_layers: int = 8,
         use_bn: bool = True,
         gamma: float = 2.0,  # Focal Loss 聚焦参数
+        use_multichannel: bool = False,  # 是否使用多通道 GNN
+        num_edge_types: int = 7,  # 边类型数量
     ):
         """初始化LineVD模型。
         
@@ -714,6 +1044,8 @@ class LitGNN(pl.LightningModule):
             random: 是否使用随机权重（用于基线比较）
             scea: SCE损失函数的α参数
             gamma: Focal Loss的聚焦参数
+            use_multichannel: 是否使用多通道 GNN（为不同边类型设置独立通道）
+            num_edge_types: 边类型数量（用于多通道 GNN）
         """
         super().__init__()
         self.lr = lr  # 保存学习率
@@ -767,21 +1099,11 @@ class LitGNN(pl.LightningModule):
         self.accuracy = torchmetrics.Accuracy(task="binary") # 准确率指标
         self.auroc = torchmetrics.AUROC(task="binary") # AUC-ROC 指标
         self.mcc = torchmetrics.MatthewsCorrCoef(task="binary", num_classes=2) # Matthews 相关系数
-
-        # 图卷积层配置
-
+        
         hfeat = self.hparams.hfeat
-        # 隐藏特征维度
-
         gatdrop = self.hparams.gatdropout
-        # GAT 层的 dropout 率
-
         numheads = self.hparams.num_heads
-        # GAT 注意力头数量
-
         embfeat = self.hparams.embfeat
-        # 嵌入特征维度
-
         gnn_args = {"out_feats": hfeat}
         # GNN 输出特征维度
         if self.hparams.gnntype == "gat":
@@ -802,10 +1124,29 @@ class LitGNN(pl.LightningModule):
         # model: gat2layer
         # 配置 2 层 GAT 模型
         if "gat" in self.hparams.model:
-            # 第一层
-            self.gat = gnn(**gnn1_args)
-            # 第二层
-            self.gat2 = gnn(**gnn2_args)
+            # 多通道 GNN 初始化
+            if self.hparams.use_multichannel:
+                self.gat = MultiChannelGNN(
+                    in_feats=embfeat,
+                    out_feats=hfeat,
+                    num_heads=numheads,
+                    dropout=gatdrop,
+                    num_channels=self.hparams.num_edge_types,
+                    gnntype=self.hparams.gnntype,
+                )
+                self.gat2 = MultiChannelGNN(
+                    in_feats=hfeat * numheads if self.hparams.gnntype in ["gat", "gatv2"] else hfeat,
+                    out_feats=hfeat,
+                    num_heads=numheads,
+                    dropout=gatdrop,
+                    num_channels=self.hparams.num_edge_types,
+                    gnntype=self.hparams.gnntype,
+                )
+            else:
+                # 第一层
+                self.gat = gnn(**gnn1_args)
+                # 第二层
+                self.gat2 = gnn(**gnn2_args)
 
             # 新增 BN 层（根据配置决定是否使用）
             if self.use_bn:
@@ -918,9 +1259,8 @@ class LitGNN(pl.LightningModule):
                 h_residual = h  # 保存原始特征用于残差连接               
                 h = self.gat(g, h)
                 # 第一层GAT
+                # 统一展平（单通道和多通道输出格式一致）
                 if self.hparams.gnntype in ["gat", "gatv2"]:
-                    # 如果是GAT或GATv2，需要将多头注意力的输出展平
-                    #h = h.view(-1, h.size(1) * h.size(2))
                     h = h.flatten(1)
                 
                 # 应用BN层（如果启用）
@@ -935,9 +1275,8 @@ class LitGNN(pl.LightningModule):
                 h_residual2 = h  # 保存第一层输出用于第二层残差连接
                 
                 h = self.gat2(g2, h) # 第二层GAT
+                # 统一展平（单通道和多通道输出格式一致）
                 if self.hparams.gnntype in ["gat", "gatv2"]:
-                    # 再次展平多头注意力的输出
-                    #h = h.view(-1, h.size(1) * h.size(2))
                     h = h.flatten(1)
                 
                 # 应用BN层（如果启用）
@@ -954,9 +1293,8 @@ class LitGNN(pl.LightningModule):
                 h_residual = h  # 保存原始特征用于残差连接
                 
                 h = self.gat(g2, h) # 单层GAT
+                # 统一展平（单通道和多通道输出格式一致）
                 if self.hparams.gnntype in ["gat", "gatv2"]:
-                    # 展平多头注意力的输出
-                    #h = h.view(-1, h.size(1) * h.size(2))
                     h = h.flatten(1)
                 
                 # 应用BN层（如果启用）

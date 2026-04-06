@@ -74,6 +74,8 @@ def train_linevd(
         mlp_layers=config["mlp_layers"],
         use_bn=config["use_bn"],
         gamma=config.get("gamma", 2.0),  # Focal Loss 聚焦参数，默认值为2.0
+        use_multichannel=config.get("use_multichannel", False),  # 是否使用多通道 GNN
+        num_edge_types=config.get("num_edge_types", 7),  # 边类型数量
     )
 
     # 加载数据集
@@ -86,6 +88,7 @@ def train_linevd(
         gtype=config["gtype"],
         splits=config["splits"],
         feat=config["embtype"],
+        use_multichannel=config.get("use_multichannel", False),  # 是否使用多通道 GNN
     )
 
     # 配置训练器和回调函数

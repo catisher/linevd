@@ -26,6 +26,8 @@ config = {
     "nsampling": tune.grid_search([False]),  # 是否使用邻居采样
     "mlp_layers": tune.grid_search([8]),
     "use_bn": tune.grid_search([False]),
+    "use_multichannel": tune.grid_search([False]),  # 不使用多通道 GNN
+    "num_edge_types": tune.grid_search([7]),  # 边类型数量
 }
 
 # 样本大小设置（-1表示使用所有样本）

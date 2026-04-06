@@ -288,7 +288,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             
             # 如果使用多通道GNN，尝试从磁盘加载预构建的子图
             if self.use_multichannel:
-                subgraph_dir = svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}"
+                subgraph_dir = svd.cache_dir() / f"bigvul_linevd_subgraphs_codebert_{self.graph_type}"
                 subgraph_path = subgraph_dir / f"{_id}.pt"
                 
                 if os.path.exists(subgraph_path):
@@ -422,8 +422,8 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
                     empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
                     subgraphs.append(empty_g)
             
-            # 保存子图到单独的文件
-            subgraph_dir = svd.get_dir(svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}")
+            # 保存子图到单独的文件（区分codebert）
+            subgraph_dir = svd.get_dir(svd.cache_dir() / f"bigvul_linevd_subgraphs_codebert_{self.graph_type}")
             subgraph_path = subgraph_dir / f"{_id}.pt"
             save_graphs(str(subgraph_path), subgraphs)
         return g
@@ -442,7 +442,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             
             # 如果使用多通道GNN，尝试从磁盘加载预构建的子图
             if self.use_multichannel:
-                subgraph_dir = svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}"
+                subgraph_dir = svd.cache_dir() / f"bigvul_linevd_subgraphs_graphcodebert_{self.graph_type}"
                 subgraph_path = subgraph_dir / f"{_id}.pt"
                 
                 if os.path.exists(subgraph_path):
@@ -580,8 +580,8 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
                     empty_g = dgl.graph(([], []), num_nodes=g.number_of_nodes())
                     subgraphs.append(empty_g)
             
-            # 保存子图到单独的文件
-            subgraph_dir = svd.get_dir(svd.cache_dir() / f"bigvul_linevd_subgraphs_{self.graph_type}")
+            # 保存子图到单独的文件（区分graphcodebert）
+            subgraph_dir = svd.get_dir(svd.cache_dir() / f"bigvul_linevd_subgraphs_graphcodebert_{self.graph_type}")
             subgraph_path = subgraph_dir / f"{_id}.pt"
             save_graphs(str(subgraph_path), subgraphs)
         

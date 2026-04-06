@@ -245,7 +245,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
         for channel_id in range(7):
             mask = (edge_types == channel_id)
             
-            if mask.sum() &gt; 0:
+            if mask.sum() > 0:
                 # 有边：构建子图并添加自环
                 src, dst = g.edges()
                 src = src[mask]
@@ -413,7 +413,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             for channel_id in range(7):
                 mask = (edge_types == channel_id)
                 
-                if mask.sum() &gt; 0:
+                if mask.sum() > 0:
                     # 有边：构建子图并添加自环
                     src, dst = g.edges()
                     src = src[mask]
@@ -573,7 +573,7 @@ class BigVulDatasetLineVD(svddc.BigVulDataset):
             for channel_id in range(7):
                 mask = (edge_types == channel_id)
                 
-                if mask.sum() &gt; 0:
+                if mask.sum() > 0:
                     # 有边：构建子图并添加自环
                     src, dst = g.edges()
                     src = src[mask]
@@ -924,7 +924,7 @@ class MultiChannelGNN(th.nn.Module):
         for channel_id in range(self.num_channels):
             mask = (edge_types == channel_id)
             
-            if mask.sum() &gt; 0:
+            if mask.sum() > 0:
                 src, dst = g.edges()
                 src = src[mask]
                 dst = dst[mask]

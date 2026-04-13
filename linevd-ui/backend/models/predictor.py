@@ -21,7 +21,8 @@ class LineVDPredictor:
         """初始化预测器"""
         self.model = None
         self.codebert = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cpu")
         print(f"使用设备: {self.device}")
     
     def load_model(self):

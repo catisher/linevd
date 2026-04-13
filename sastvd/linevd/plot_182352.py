@@ -11,16 +11,6 @@ reload(svdj)
 
 def get_digraph(nodes, edges, edge_label=True):
     """根据节点和边列表绘制有向图。
-    
-    使用Graphviz的neato引擎生成代码属性图的可视化。
-    
-    Args:
-        nodes: 节点列表，每个节点包含[id, label, type]
-        edges: 边列表，每个边包含[innode, outnode, etype]
-        edge_label: 是否显示边标签，默认为True
-    
-    Returns:
-        Digraph: Graphviz有向图对象
     """
     # 创建有向图，使用neato引擎进行布局
     dot = Digraph(comment="Combined PDG", engine="neato")

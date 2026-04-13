@@ -17,8 +17,9 @@ import matplotlib.pyplot as plt
 
 print("开始导出myrq4实验数据...")
 
-# 设置输出目录为当前工作目录
-output_dir = os.getcwd()
+# 设置输出目录为storage/outputs/myrq4_results
+output_dir = str(svd.outputs_dir() / "myrq4_results")
+os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
 # 查找myrq4实验目录

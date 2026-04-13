@@ -75,11 +75,13 @@ for trial_dir in trial_dirs:
     
     print(f"处理 {modeltype} 试验...")
     
-    # 查找训练日志
-    csv_files = glob.glob(f"{trial_dir}/csv_logs/*.csv")
+    # 查找训练日志（递归查找）
+    csv_files = glob.glob(f"{trial_dir}/**/csv_logs/*.csv", recursive=True)
     if not csv_files:
-        print(f"未找到{trial_dir}的训练日志")
+        print(f"  未找到训练日志，跳过")
         continue
+    
+    print(f"  找到训练日志: {csv_files[0]}")
     
     # 读取训练日志
     df = pd.read_csv(csv_files[0])
@@ -87,11 +89,13 @@ for trial_dir in trial_dirs:
     # 提取最佳验证损失
     best_val_loss = df['val_loss'].min() if 'val_loss' in df.columns else None
     
-    # 查找检查点
-    checkpoint_files = glob.glob(f"{trial_dir}/checkpoint_*/checkpoint")
+    # 查找检查点（递归查找）
+    checkpoint_files = glob.glob(f"{trial_dir}/**/checkpoint_*/checkpoint", recursive=True)
     if not checkpoint_files:
-        print(f"未找到{trial_dir}的检查点")
+        print(f"  未找到检查点，跳过")
         continue
+    
+    print(f"  找到检查点: {checkpoint_files[0]}")
     
     checkpoint_path = checkpoint_files[0]
     

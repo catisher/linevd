@@ -75,8 +75,29 @@ for trial_dir in trial_dirs:
     
     print(f"处理 {embtype} 试验...")
     
-    # 查找训练日志（递归查找）
-    csv_files = glob.glob(f"{trial_dir}/**/csv_logs/*.csv", recursive=True)
+    # 查找训练日志（在多个目录中查找）
+    csv_files = []
+    # 检查当前目录及其子目录
+    csv_files.extend(glob.glob(f"{trial_dir}/**/csv_logs/*.csv", recursive=True))
+    # 检查父目录
+    parent_dir = os.path.dirname(trial_dir)
+    csv_files.extend(glob.glob(f"{parent_dir}/**/csv_logs/*.csv", recursive=True))
+    # 检查祖父目录（这是csv_logs所在的目录）
+    grandparent_dir = os.path.dirname(parent_dir)
+    csv_files.extend(glob.glob(f"{grandparent_dir}/**/csv_logs/*.csv", recursive=True))
+    # 检查曾祖父目录
+    great_grandparent_dir = os.path.dirname(grandparent_dir)
+    csv_files.extend(glob.glob(f"{great_grandparent_dir}/**/csv_logs/*.csv", recursive=True))
+    
+    # 打印调试信息
+    print(f"  试验目录: {trial_dir}")
+    print(f"  父目录: {parent_dir}")
+    print(f"  祖父目录: {grandparent_dir}")
+    print(f"  曾祖父目录: {great_grandparent_dir}")
+    print(f"  找到 {len(csv_files)} 个CSV文件")
+    for i, f in enumerate(csv_files):
+        print(f"    {i+1}. {f}")
+    
     if not csv_files:
         print(f"  未找到训练日志，跳过")
         continue

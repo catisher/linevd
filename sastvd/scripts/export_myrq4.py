@@ -23,35 +23,50 @@ os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
 # 查找myrq4实验目录
-myrq4_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq4_-1"))
+print(f"在 {str(svd.processed_dir())} 中查找myrq4实验目录...")
+myrq4_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq4_*"))
+print(f"找到 {len(myrq4_dirs)} 个myrq4实验目录:")
+for i, d in enumerate(myrq4_dirs):
+    print(f"  {i+1}. {d}")
+
 if not myrq4_dirs:
     print("未找到myrq4实验目录，退出程序")
     exit(1)
 
 myrq4_dir = myrq4_dirs[0]
-print(f"找到myrq4实验目录: {myrq4_dir}")
+print(f"使用myrq4实验目录: {myrq4_dir}")
 
 # 存储实验结果
 results = []
 
 # 查找所有试验目录
+print(f"\n查找 {myrq4_dir} 下的所有试验目录...")
 trial_dirs = glob.glob(f"{myrq4_dir}/*")
+print(f"找到 {len(trial_dirs)} 个试验目录:")
+for i, d in enumerate(trial_dirs):
+    print(f"  {i+1}. {os.path.basename(d)}")
 
 for trial_dir in trial_dirs:
+    print(f"\n处理试验目录: {os.path.basename(trial_dir)}")
     if not os.path.isdir(trial_dir):
+        print(f"  不是目录，跳过")
         continue
     
     # 读取配置文件
     config_file = os.path.join(trial_dir, "params.json")
     if not os.path.exists(config_file):
+        print(f"  未找到params.json文件，跳过")
         continue
     
+    print(f"  找到params.json文件")
     with open(config_file, 'r') as f:
         config = json.load(f)
     
     # 提取损失函数类型
     loss_type = config.get("loss", "")
+    print(f"  损失函数类型: '{loss_type}'")
     if loss_type not in ["ce", "sce", "focal"]:
+        print(f"  损失函数类型不在预期列表中，跳过")
         continue
     
     print(f"处理 {loss_type} 试验...")

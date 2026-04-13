@@ -23,35 +23,50 @@ os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
 # 查找myrq1实验目录
-myrq1_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq1_-1"))
+print(f"在 {str(svd.processed_dir())} 中查找myrq1实验目录...")
+myrq1_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq1_*"))
+print(f"找到 {len(myrq1_dirs)} 个myrq1实验目录:")
+for i, d in enumerate(myrq1_dirs):
+    print(f"  {i+1}. {d}")
+
 if not myrq1_dirs:
     print("未找到myrq1实验目录，退出程序")
     exit(1)
 
 myrq1_dir = myrq1_dirs[0]
-print(f"找到myrq1实验目录: {myrq1_dir}")
+print(f"使用myrq1实验目录: {myrq1_dir}")
 
 # 存储实验结果
 results = []
 
 # 查找所有试验目录
+print(f"\n查找 {myrq1_dir} 下的所有试验目录...")
 trial_dirs = glob.glob(f"{myrq1_dir}/*")
+print(f"找到 {len(trial_dirs)} 个试验目录:")
+for i, d in enumerate(trial_dirs):
+    print(f"  {i+1}. {os.path.basename(d)}")
 
 for trial_dir in trial_dirs:
+    print(f"\n处理试验目录: {os.path.basename(trial_dir)}")
     if not os.path.isdir(trial_dir):
+        print(f"  不是目录，跳过")
         continue
     
     # 读取配置文件
     config_file = os.path.join(trial_dir, "params.json")
     if not os.path.exists(config_file):
+        print(f"  未找到params.json文件，跳过")
         continue
     
+    print(f"  找到params.json文件")
     with open(config_file, 'r') as f:
         config = json.load(f)
     
     # 提取嵌入类型
     embtype = config.get("embtype", "")
+    print(f"  嵌入类型: '{embtype}'")
     if embtype not in ["codebert", "graphcodebert"]:
+        print(f"  嵌入类型不在预期列表中，跳过")
         continue
     
     print(f"处理 {embtype} 试验...")

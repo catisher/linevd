@@ -147,3 +147,16 @@ tail -f myrq5.log
 ## 测试实验
 nohup python sastvd/scripts/test.py > test.log 2>&1 &
 tail -f test.log
+
+
+# 导出RQ1: CodeBERT vs GraphCodeBERT
+python sastvd/scripts/export_myrq1.py
+
+# 导出RQ2: 残差连接有效性
+python sastvd/scripts/export_myrq2.py
+
+# 导出RQ3: GNN类型对比
+python sastvd/scripts/export_myrq3.py
+
+# 导出RQ4: 损失函数对比
+python sastvd/scripts/export_myrq4.py

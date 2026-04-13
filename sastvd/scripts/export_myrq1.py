@@ -146,21 +146,39 @@ for trial_dir in trial_dirs:
     # 读取训练日志
     df = pd.read_csv(selected_csv)
     
+    # 打印CSV文件的列名，以便了解文件结构
+    print(f"  CSV文件列名: {list(df.columns)}")
+    
+    # 打印CSV文件的前几行，以便了解数据结构
+    print(f"  CSV文件前5行:")
+    print(df.head())
+    
     # 提取最佳验证损失
-    best_val_loss = df['val_loss'].min() if 'val_loss' in df.columns else None
+    best_val_loss = None
+    if 'val_loss' in df.columns:
+        best_val_loss = df['val_loss'].min()
+    elif 'valid_loss' in df.columns:
+        best_val_loss = df['valid_loss'].min()
+    elif 'validation_loss' in df.columns:
+        best_val_loss = df['validation_loss'].min()
     
     # 尝试从CSV文件中提取F1值和AUROC（如果有）
     f1 = None
     auroc = None
-    if 'f1' in df.columns:
-        f1 = df['f1'].max() if 'f1' in df.columns else None
-    elif 'test_f1' in df.columns:
-        f1 = df['test_f1'].max() if 'test_f1' in df.columns else None
     
-    if 'auroc' in df.columns:
-        auroc = df['auroc'].max() if 'auroc' in df.columns else None
-    elif 'test_auroc' in df.columns:
-        auroc = df['test_auroc'].max() if 'test_auroc' in df.columns else None
+    # 查找F1值
+    f1_columns = ['f1', 'test_f1', 'f1_score', 'test_f1_score']
+    for col in f1_columns:
+        if col in df.columns:
+            f1 = df[col].max()
+            break
+    
+    # 查找AUROC值
+    auroc_columns = ['auroc', 'test_auroc', 'roc_auc', 'test_roc_auc']
+    for col in auroc_columns:
+        if col in df.columns:
+            auroc = df[col].max()
+            break
     
     # 存储结果
     result = {
@@ -190,39 +208,66 @@ if results:
     # 生成对比图
     print("\n生成对比图...")
     
-    # 设置中文字体
-    plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-    plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+    # 检查是否有有效的指标值
+    has_valid_data = False
+    for col in ['f1', 'auroc', 'val_loss']:
+        if results_df[col].notna().any():
+            has_valid_data = True
+            break
     
-    # 指标对比图
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    
-    # F1值对比
-    axes[0].bar(results_df['embedding_type'], results_df['f1'])
-    axes[0].set_title('F1值对比')
-    axes[0].set_ylabel('F1值')
-    axes[0].set_ylim(0, 1)
-    
-    # AUROC对比
-    axes[1].bar(results_df['embedding_type'], results_df['auroc'])
-    axes[1].set_title('AUROC对比')
-    axes[1].set_ylabel('AUROC值')
-    axes[1].set_ylim(0, 1)
-    
-    # 验证损失对比
-    axes[2].bar(results_df['embedding_type'], results_df['val_loss'])
-    axes[2].set_title('验证损失对比')
-    axes[2].set_ylabel('验证损失')
-    
-    plt.tight_layout()
-    
-    # 保存图表
-    plot_file = os.path.join(output_dir, "myrq1_embedding_comparison.png")
-    plt.savefig(plot_file, dpi=300, bbox_inches='tight')
-    print(f"✓ 对比图已保存到 {plot_file}")
-    
-    # 显示图表
-    plt.show()
+    if has_valid_data:
+        # 设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
+        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+        
+        # 指标对比图
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        
+        # F1值对比
+        if 'f1' in results_df.columns and results_df['f1'].notna().any():
+            axes[0].bar(results_df['embedding_type'], results_df['f1'])
+            axes[0].set_title('F1值对比')
+            axes[0].set_ylabel('F1值')
+            axes[0].set_ylim(0, 1)
+        else:
+            axes[0].set_title('F1值对比')
+            axes[0].set_ylabel('F1值')
+            axes[0].set_ylim(0, 1)
+            axes[0].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[0].transAxes)
+        
+        # AUROC对比
+        if 'auroc' in results_df.columns and results_df['auroc'].notna().any():
+            axes[1].bar(results_df['embedding_type'], results_df['auroc'])
+            axes[1].set_title('AUROC对比')
+            axes[1].set_ylabel('AUROC值')
+            axes[1].set_ylim(0, 1)
+        else:
+            axes[1].set_title('AUROC对比')
+            axes[1].set_ylabel('AUROC值')
+            axes[1].set_ylim(0, 1)
+            axes[1].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[1].transAxes)
+        
+        # 验证损失对比
+        if 'val_loss' in results_df.columns and results_df['val_loss'].notna().any():
+            axes[2].bar(results_df['embedding_type'], results_df['val_loss'])
+            axes[2].set_title('验证损失对比')
+            axes[2].set_ylabel('验证损失')
+        else:
+            axes[2].set_title('验证损失对比')
+            axes[2].set_ylabel('验证损失')
+            axes[2].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[2].transAxes)
+        
+        plt.tight_layout()
+        
+        # 保存图表
+        plot_file = os.path.join(output_dir, "myrq1_embedding_comparison.png")
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        print(f"✓ 对比图已保存到 {plot_file}")
+        
+        # 显示图表
+        plt.show()
+    else:
+        print("未找到有效的指标数据，跳过生成对比图")
 else:
     print("\n未找到任何实验结果")
 

@@ -155,30 +155,56 @@ for trial_dir in trial_dirs:
     
     # 提取最佳验证损失
     best_val_loss = None
-    if 'val_loss' in df.columns:
-        best_val_loss = df['val_loss'].min()
+    if 'val_loss_epoch' in df.columns:
+        # 过滤掉NaN值，然后取最小值
+        valid_losses = df['val_loss_epoch'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
+    elif 'val_loss' in df.columns:
+        valid_losses = df['val_loss'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
     elif 'valid_loss' in df.columns:
-        best_val_loss = df['valid_loss'].min()
+        valid_losses = df['valid_loss'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
     elif 'validation_loss' in df.columns:
-        best_val_loss = df['validation_loss'].min()
+        valid_losses = df['validation_loss'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
     
     # 尝试从CSV文件中提取F1值和AUROC（如果有）
     f1 = None
     auroc = None
     
-    # 查找F1值
-    f1_columns = ['f1', 'test_f1', 'f1_score', 'test_f1_score']
-    for col in f1_columns:
-        if col in df.columns:
-            f1 = df[col].max()
-            break
-    
     # 查找AUROC值
-    auroc_columns = ['auroc', 'test_auroc', 'roc_auc', 'test_roc_auc']
-    for col in auroc_columns:
-        if col in df.columns:
-            auroc = df[col].max()
-            break
+    if 'val_auroc' in df.columns:
+        valid_aurocs = df['val_auroc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    elif 'auroc' in df.columns:
+        valid_aurocs = df['auroc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    elif 'test_auroc' in df.columns:
+        valid_aurocs = df['test_auroc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    elif 'roc_auc' in df.columns:
+        valid_aurocs = df['roc_auc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    
+    # 查找准确率作为参考（CSV文件中没有直接的F1值）
+    accuracy = None
+    if 'val_acc' in df.columns:
+        valid_accs = df['val_acc'].dropna()
+        if not valid_accs.empty:
+            accuracy = valid_accs.max()
+    
+    print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
+    print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
+    print(f"  准确率: {accuracy:.4f}" if accuracy is not None else "  准确率: 未找到")
     
     # 存储结果
     result = {

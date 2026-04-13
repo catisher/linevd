@@ -39,12 +39,16 @@ print(f"使用myrq4实验目录: {myrq4_dir}")
 # 存储实验结果
 results = []
 
-# 查找所有试验目录
+# 查找所有试验目录（递归查找包含loss的目录）
 print(f"\n查找 {myrq4_dir} 下的所有试验目录...")
-trial_dirs = glob.glob(f"{myrq4_dir}/*")
+trial_dirs = []
+for root, dirs, files in os.walk(myrq4_dir):
+    for d in dirs:
+        if 'loss=' in d:
+            trial_dirs.append(os.path.join(root, d))
 print(f"找到 {len(trial_dirs)} 个试验目录:")
 for i, d in enumerate(trial_dirs):
-    print(f"  {i+1}. {os.path.basename(d)}")
+    print(f"  {i+1}. {d}")
 
 for trial_dir in trial_dirs:
     print(f"\n处理试验目录: {os.path.basename(trial_dir)}")

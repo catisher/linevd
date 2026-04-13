@@ -172,7 +172,7 @@ for trial_dir in trial_dirs:
     
     results.append(result)
     print(f"✓ 成功导出 {embtype} 的结果")
-    print(f"  验证损失: {best_val_loss:.4f}")
+    print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
     print(f"  F1值: {f1:.4f}" if f1 is not None else "  F1值: 未找到")
     print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
 

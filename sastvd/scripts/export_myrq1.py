@@ -126,75 +126,55 @@ for trial_dir in trial_dirs:
         print(f"  未找到训练日志，跳过")
         continue
     
-    print(f"  找到训练日志: {csv_files[0]}")
+    # 为当前嵌入类型选择正确的CSV文件
+    # codebert对应version_0，graphcodebert对应version_1
+    selected_csv = None
+    for csv_file in csv_files:
+        if embtype == "codebert" and "version_0" in csv_file:
+            selected_csv = csv_file
+            break
+        elif embtype == "graphcodebert" and "version_1" in csv_file:
+            selected_csv = csv_file
+            break
+    
+    if not selected_csv:
+        # 如果没有找到对应版本的CSV文件，使用第一个文件
+        selected_csv = csv_files[0]
+    
+    print(f"  找到训练日志: {selected_csv}")
     
     # 读取训练日志
-    df = pd.read_csv(csv_files[0])
+    df = pd.read_csv(selected_csv)
     
     # 提取最佳验证损失
     best_val_loss = df['val_loss'].min() if 'val_loss' in df.columns else None
     
-    # 查找检查点（递归查找）
-    checkpoint_files = glob.glob(f"{trial_dir}/**/checkpoint_*/checkpoint", recursive=True)
-    if not checkpoint_files:
-        print(f"  未找到检查点，跳过")
-        continue
+    # 尝试从CSV文件中提取F1值和AUROC（如果有）
+    f1 = None
+    auroc = None
+    if 'f1' in df.columns:
+        f1 = df['f1'].max() if 'f1' in df.columns else None
+    elif 'test_f1' in df.columns:
+        f1 = df['test_f1'].max() if 'test_f1' in df.columns else None
     
-    print(f"  找到检查点: {checkpoint_files[0]}")
+    if 'auroc' in df.columns:
+        auroc = df['auroc'].max() if 'auroc' in df.columns else None
+    elif 'test_auroc' in df.columns:
+        auroc = df['test_auroc'].max() if 'test_auroc' in df.columns else None
     
-    checkpoint_path = checkpoint_files[0]
+    # 存储结果
+    result = {
+        "embedding_type": embtype,
+        "val_loss": best_val_loss,
+        "f1": f1,
+        "auroc": auroc
+    }
     
-    try:
-        # 加载模型
-        model = lvd.LitGNN.load_from_checkpoint(checkpoint_path)
-        model.eval()
-        
-        # 加载测试数据
-        data_module = lvd.BigVulDatasetLineVDDataModule(
-            batch_size=256,
-            sample=-1,
-            methodlevel=False,
-            nsampling=False,
-            gtype=config.get("gtype", "pdg+raw"),
-            splits=config.get("splits", "default"),
-            feat=embtype
-        )
-        data_module.setup()
-        test_loader = data_module.test_dataloader()
-        
-        # 收集预测结果
-        predictions = []
-        labels = []
-        probabilities = []
-        
-        with torch.no_grad():
-            for batch in test_loader:
-                logits = model(batch)
-                prob = torch.softmax(logits, dim=1)
-                pred = torch.argmax(prob, dim=1)
-                lbl = batch.ndata["_VULN"]
-                
-                predictions.extend(pred.cpu().numpy())
-                labels.extend(lbl.cpu().numpy())
-                probabilities.extend(prob[:, 1].cpu().numpy())  # 漏洞概率
-        
-        # 计算F1值和AUROC
-        f1 = f1_score(labels, predictions)
-        auroc = roc_auc_score(labels, probabilities)
-        
-        # 存储结果
-        result = {
-            "embedding_type": embtype,
-            "val_loss": best_val_loss,
-            "f1": f1,
-            "auroc": auroc
-        }
-        
-        results.append(result)
-        print(f"✓ 成功导出 {embtype} 的结果")
-        
-    except Exception as e:
-        print(f"✗ 处理 {trial_dir} 失败: {e}")
+    results.append(result)
+    print(f"✓ 成功导出 {embtype} 的结果")
+    print(f"  验证损失: {best_val_loss:.4f}")
+    print(f"  F1值: {f1:.4f}" if f1 is not None else "  F1值: 未找到")
+    print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
 
 # 导出结果
 if results:

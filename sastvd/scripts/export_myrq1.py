@@ -75,26 +75,50 @@ for trial_dir in trial_dirs:
     
     print(f"处理 {embtype} 试验...")
     
-    # 查找训练日志（在多个目录中查找）
-    csv_files = []
-    # 检查当前目录及其子目录
-    csv_files.extend(glob.glob(f"{trial_dir}/**/csv_logs/*.csv", recursive=True))
-    # 检查父目录
-    parent_dir = os.path.dirname(trial_dir)
-    csv_files.extend(glob.glob(f"{parent_dir}/**/csv_logs/*.csv", recursive=True))
-    # 检查祖父目录（这是csv_logs所在的目录）
-    grandparent_dir = os.path.dirname(parent_dir)
-    csv_files.extend(glob.glob(f"{grandparent_dir}/**/csv_logs/*.csv", recursive=True))
-    # 检查曾祖父目录
-    great_grandparent_dir = os.path.dirname(grandparent_dir)
-    csv_files.extend(glob.glob(f"{great_grandparent_dir}/**/csv_logs/*.csv", recursive=True))
-    
     # 打印调试信息
     print(f"  试验目录: {trial_dir}")
+    parent_dir = os.path.dirname(trial_dir)
     print(f"  父目录: {parent_dir}")
+    grandparent_dir = os.path.dirname(parent_dir)
     print(f"  祖父目录: {grandparent_dir}")
+    great_grandparent_dir = os.path.dirname(grandparent_dir)
     print(f"  曾祖父目录: {great_grandparent_dir}")
-    print(f"  找到 {len(csv_files)} 个CSV文件")
+    
+    # 检查祖父目录的内容（这是csv_logs所在的目录）
+    print(f"\n  祖父目录内容:")
+    if os.path.exists(grandparent_dir):
+        for item in os.listdir(grandparent_dir):
+            item_path = os.path.join(grandparent_dir, item)
+            if os.path.isdir(item_path):
+                print(f"    目录: {item}")
+            else:
+                print(f"    文件: {item}")
+    
+    # 检查csv_logs目录的内容
+    csv_logs_dir = os.path.join(grandparent_dir, "csv_logs")
+    print(f"\n  csv_logs目录内容:")
+    if os.path.exists(csv_logs_dir):
+        for item in os.listdir(csv_logs_dir):
+            item_path = os.path.join(csv_logs_dir, item)
+            if os.path.isdir(item_path):
+                print(f"    目录: {item}")
+                # 检查子目录的内容
+                for subitem in os.listdir(item_path):
+                    subitem_path = os.path.join(item_path, subitem)
+                    print(f"      - {subitem}")
+            else:
+                print(f"    文件: {item}")
+    else:
+        print(f"    csv_logs目录不存在")
+    
+    # 查找训练日志（在多个目录中查找）
+    csv_files = []
+    # 直接检查csv_logs目录及其子目录（如version_0、version_1）
+    if os.path.exists(csv_logs_dir):
+        # 查找csv_logs目录下的所有CSV文件
+        csv_files.extend(glob.glob(f"{csv_logs_dir}/**/*.csv", recursive=True))
+    
+    print(f"\n  找到 {len(csv_files)} 个CSV文件")
     for i, f in enumerate(csv_files):
         print(f"    {i+1}. {f}")
     

@@ -104,6 +104,14 @@ python sastvd/scripts/prepare.py
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 python sastvd/scripts/train_best.py
 
+## CodeBERT 实验
+nohup python sastvd/codebert/main.py > codebert.log 2>&1 &
+tail -f codebert.log
+
+## GraphCodeBERT 实验
+nohup python sastvd/graphcodebert/main.py > graphcodebert.log 2>&1 &
+tail -f graphcodebert.log
+
 python tests/try.py
 python tests/check_distribution.py
 

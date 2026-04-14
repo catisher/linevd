@@ -380,7 +380,7 @@ trainer = pl.Trainer(
     num_sanity_val_steps=0,
     callbacks=[checkpoint_callback],
 )
-tuned = trainer.tune(model, data)
+#tuned = trainer.tune(model, data)
 trainer.fit(model, data)
 trainer.test(model, data)
 

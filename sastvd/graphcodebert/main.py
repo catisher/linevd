@@ -56,8 +56,10 @@ class BigVulDatasetNLP:
             # 合并漏洞和非漏洞样本，实现类别平衡
             self.df = pd.concat([vul, nonvul])
         
+        # 检查本地是否存在 GraphCodeBERT 模型
+        graphcodebert_base_path = svd.external_dir() / "graphcodebert-base"
         # 加载 GraphCodeBERT 分词器
-        tokenizer = AutoTokenizer.from_pretrained("microsoft/graphcodebert-base")
+        tokenizer = AutoTokenizer.from_pretrained(graphcodebert_base_path)
         # 分词参数：填充到最大长度、截断过长序列、返回 PyTorch 张量
         tk_args = {"padding": True, "truncation": True, "return_tensors": "pt"}
         
@@ -176,8 +178,10 @@ class BigVulDatasetNLPLine:
                 # 添加标签（1=漏洞行，0=非漏洞行）
                 self.labels.append(1 if idx in vuln_lines else 0)
 
+        # 检查本地是否存在 GraphCodeBERT 模型
+        graphcodebert_base_path = svd.external_dir() / "graphcodebert-base"
         # 加载 GraphCodeBERT 分词器
-        tokenizer = AutoTokenizer.from_pretrained("microsoft/graphcodebert-base")
+        tokenizer = AutoTokenizer.from_pretrained(graphcodebert_base_path)
         # 分词参数
         tk_args = {"padding": True, "truncation": True, "return_tensors": "pt"}
         # 处理文本，添加分隔符作为前缀
@@ -274,18 +278,20 @@ class LitGraphCodebert(pl.LightningModule):
         self.lr = lr
         # 保存超参数（用于模型检查点和日志）
         self.save_hyperparameters()
+        # 检查本地是否存在 GraphCodeBERT 模型
+        graphcodebert_base_path = svd.external_dir() / "graphcodebert-base"
         # 加载预训练的 GraphCodeBERT 模型
-        self.bert = AutoModel.from_pretrained("microsoft/graphcodebert-base")
+        self.bert = AutoModel.from_pretrained(graphcodebert_base_path)
         # 第一全连接层：将 GraphCodeBERT 输出的 768 维特征映射到 256 维
         self.fc1 = torch.nn.Linear(768, 256)
         # 第二全连接层：将 256 维特征映射到 2 维（二分类）
         self.fc2 = torch.nn.Linear(256, 2)
         # 准确率指标
-        self.accuracy = torchmetrics.Accuracy()
+        self.accuracy = torchmetrics.Accuracy(task="binary")
         # AUC-ROC 指标（在 epoch 结束时计算）
-        self.auroc = torchmetrics.AUROC(compute_on_step=False)
+        self.auroc = torchmetrics.AUROC(task="binary")
         # Matthews 相关系数指标（适用于不平衡数据集）
-        self.mcc = torchmetrics.MatthewsCorrcoef(2)
+        self.mcc = torchmetrics.MatthewsCorrCoef(task="binary")
 
     def forward(self, ids, mask):
         """前向传播
@@ -410,12 +416,12 @@ if __name__ == "__main__":
     data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
     checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val_loss")
     trainer = pl.Trainer(
-        gpus=1,
+        accelerator="cpu",
         auto_lr_find=True,
         default_root_dir=savepath,
         num_sanity_val_steps=0,
         callbacks=[checkpoint_callback],
     )
-    tuned = trainer.tune(model, data)
+    #tuned = trainer.tune(model, data)
     trainer.fit(model, data)
     trainer.test(model, data)

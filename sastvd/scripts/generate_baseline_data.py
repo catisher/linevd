@@ -35,7 +35,7 @@ def calc_f1(tp, fp, fn):
 # ]
 checkpoint_paths = [
     # 在此处添加数据
-    # 示例：{"baseline_name": "baseline1", "checkpoint_path": "/path/to/baseline1/checkpoint_000099"},
+    {"baseline_name": "baseline", "checkpoint_path": "~/linevd/storage/processed/raytune_baseline_-1/202604070632_2f49f45_规范实验/tune_linevd_baseline/train_linevd_7ea25_00000_0_batch_size=256,embtype=codebert,gamma=2,gatdropout=0.2000,gnntype=gat,gtype=pdg_raw,hdropout=0.3000,hfe_2026-04-07_06-32-29/checkpoint_000099"},
 ]
 # ==============================================
 

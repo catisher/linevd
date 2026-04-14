@@ -51,9 +51,9 @@ class BigVulDatasetNLP:
             nonvul = self.df[self.df.vul == 0].sample(len(vul), random_state=0)
             # 合并漏洞和非漏洞样本，实现类别平衡
             self.df = pd.concat([vul, nonvul])
-        
+        codebert_base_path = svd.external_dir() / "codebert-base"
         # 加载 CodeBERT 分词器
-        tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
+        tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
         # 分词参数：填充到最大长度、截断过长序列、返回 PyTorch 张量
         tk_args = {"padding": True, "truncation": True, "return_tensors": "pt"}
         # 处理文本，添加分隔符作为前缀

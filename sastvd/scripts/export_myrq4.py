@@ -74,29 +74,25 @@ if results:
     # 生成对比图
     print("\n生成对比图...")
     
-    # 设置中文字体
-    plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-    plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-    
     # 指标对比图
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
     # F1值对比
     axes[0].bar(results_df['loss_type'], results_df['f1'])
-    axes[0].set_title('F1值对比')
-    axes[0].set_ylabel('F1值')
+    axes[0].set_title('F1 Score Comparison')
+    axes[0].set_ylabel('F1 Score')
     axes[0].set_ylim(0, 1)
     
     # AUROC对比
     axes[1].bar(results_df['loss_type'], results_df['auroc'])
-    axes[1].set_title('AUROC对比')
-    axes[1].set_ylabel('AUROC值')
+    axes[1].set_title('AUROC Comparison')
+    axes[1].set_ylabel('AUROC Score')
     axes[1].set_ylim(0, 1)
     
     # 验证损失对比
     axes[2].bar(results_df['loss_type'], results_df['val_loss'])
-    axes[2].set_title('验证损失对比')
-    axes[2].set_ylabel('验证损失')
+    axes[2].set_title('Validation Loss Comparison')
+    axes[2].set_ylabel('Validation Loss')
     
     plt.tight_layout()
     

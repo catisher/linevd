@@ -67,33 +67,20 @@ for emb_dir in emb_type_dirs:
     
     # 查找模型检查点
     checkpoint_files = []
-    # 递归查找所有 .ckpt 文件
+    # 递归查找所有可能的检查点文件
+    print(f"在 {emb_dir} 中搜索检查点文件...")
     for root, dirs, files in os.walk(emb_dir):
         for file in files:
-            if file.endswith(".ckpt"):
+            # 检查常见的检查点文件扩展名
+            if any(file.endswith(ext) for ext in [".ckpt", ".pt", ".pth"]):
                 checkpoint_files.append(os.path.join(root, file))
-    
-    if not checkpoint_files:
-        # 尝试查找 ray tune 常见的检查点目录结构
-        print(f"未找到 {emb_type} 的模型检查点文件，尝试查找子目录...")
-        # 检查可能的检查点目录
-        possible_checkpoint_dirs = [
-            os.path.join(emb_dir, "checkpoints"),
-            os.path.join(emb_dir, "checkpoint"),
-            os.path.join(emb_dir, "model"),
-            os.path.join(emb_dir, "models")
-        ]
-        
-        for checkpoint_dir in possible_checkpoint_dirs:
-            if os.path.exists(checkpoint_dir):
-                print(f"检查目录: {checkpoint_dir}")
-                for root, dirs, files in os.walk(checkpoint_dir):
-                    for file in files:
-                        if file.endswith(".ckpt"):
-                            checkpoint_files.append(os.path.join(root, file))
+                print(f"  找到: {os.path.join(root, file)}")
     
     if not checkpoint_files:
         print(f"错误: 未找到 {emb_type} 的模型检查点文件")
+        print(f"请确保模型已训练完成，且检查点文件存在于以下目录中:")
+        print(f"  {emb_dir}")
+        print("检查点文件通常以 .ckpt, .pt 或 .pth 扩展名结尾")
         exit(1)
     
     print(f"找到 {len(checkpoint_files)} 个检查点文件")

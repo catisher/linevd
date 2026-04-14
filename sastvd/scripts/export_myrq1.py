@@ -75,144 +75,130 @@ for trial_dir in trial_dirs:
     
     print(f"处理 {embtype} 试验...")
     
-    # 打印调试信息
-    print(f"  试验目录: {trial_dir}")
-    parent_dir = os.path.dirname(trial_dir)
-    print(f"  父目录: {parent_dir}")
-    grandparent_dir = os.path.dirname(parent_dir)
-    print(f"  祖父目录: {grandparent_dir}")
-    great_grandparent_dir = os.path.dirname(grandparent_dir)
-    print(f"  曾祖父目录: {great_grandparent_dir}")
-    
-    # 检查祖父目录的内容（这是csv_logs所在的目录）
-    print(f"\n  祖父目录内容:")
-    if os.path.exists(grandparent_dir):
-        for item in os.listdir(grandparent_dir):
-            item_path = os.path.join(grandparent_dir, item)
-            if os.path.isdir(item_path):
-                print(f"    目录: {item}")
-            else:
-                print(f"    文件: {item}")
-    
-    # 检查csv_logs目录的内容
-    csv_logs_dir = os.path.join(grandparent_dir, "csv_logs")
-    print(f"\n  csv_logs目录内容:")
-    if os.path.exists(csv_logs_dir):
-        for item in os.listdir(csv_logs_dir):
-            item_path = os.path.join(csv_logs_dir, item)
-            if os.path.isdir(item_path):
-                print(f"    目录: {item}")
-                # 检查子目录的内容
-                for subitem in os.listdir(item_path):
-                    subitem_path = os.path.join(item_path, subitem)
-                    print(f"      - {subitem}")
-            else:
-                print(f"    文件: {item}")
-    else:
-        print(f"    csv_logs目录不存在")
-    
-    # 查找训练日志（在多个目录中查找）
-    csv_files = []
-    # 直接检查csv_logs目录及其子目录（如version_0、version_1）
-    if os.path.exists(csv_logs_dir):
-        # 查找csv_logs目录下的所有CSV文件
-        csv_files.extend(glob.glob(f"{csv_logs_dir}/**/*.csv", recursive=True))
-    
-    print(f"\n  找到 {len(csv_files)} 个CSV文件")
-    for i, f in enumerate(csv_files):
-        print(f"    {i+1}. {f}")
-    
-    if not csv_files:
-        print(f"  未找到训练日志，跳过")
+    # 查找检查点文件
+    checkpoint_files = glob.glob(os.path.join(trial_dir, "checkpoints", "*.ckpt"))
+    if not checkpoint_files:
+        print(f"  未找到检查点文件，跳过")
         continue
     
-    # 为当前嵌入类型选择正确的CSV文件
-    # codebert对应version_0，graphcodebert对应version_1
-    selected_csv = None
-    for csv_file in csv_files:
-        if embtype == "codebert" and "version_0" in csv_file:
-            selected_csv = csv_file
-            break
-        elif embtype == "graphcodebert" and "version_1" in csv_file:
-            selected_csv = csv_file
-            break
+    print(f"  找到检查点: {checkpoint_files[0]}")
+    checkpoint_path = checkpoint_files[0]
     
-    if not selected_csv:
-        # 如果没有找到对应版本的CSV文件，使用第一个文件
-        selected_csv = csv_files[0]
+    # 查找CSV日志文件
+    parent_dir = os.path.dirname(trial_dir)
+    grandparent_dir = os.path.dirname(parent_dir)
+    csv_logs_dir = os.path.join(grandparent_dir, "csv_logs")
     
-    print(f"  找到训练日志: {selected_csv}")
+    csv_files = []
+    if os.path.exists(csv_logs_dir):
+        csv_files.extend(glob.glob(f"{csv_logs_dir}/**/*.csv", recursive=True))
     
-    # 读取训练日志
-    df = pd.read_csv(selected_csv)
-    
-    # 打印CSV文件的列名，以便了解文件结构
-    print(f"  CSV文件列名: {list(df.columns)}")
-    
-    # 打印CSV文件的前几行，以便了解数据结构
-    print(f"  CSV文件前5行:")
-    print(df.head())
-    
-    # 提取最佳验证损失
+    # 提取验证损失
     best_val_loss = None
-    if 'val_loss_epoch' in df.columns:
-        # 过滤掉NaN值，然后取最小值
-        valid_losses = df['val_loss_epoch'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    elif 'val_loss' in df.columns:
-        valid_losses = df['val_loss'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    elif 'valid_loss' in df.columns:
-        valid_losses = df['valid_loss'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    elif 'validation_loss' in df.columns:
-        valid_losses = df['validation_loss'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
+    csv_f1 = None
+    csv_auroc = None
     
-    # 尝试从CSV文件中提取F1值和AUROC（如果有）
-    f1 = None
-    auroc = None
+    if csv_files:
+        selected_csv = None
+        for csv_file in csv_files:
+            if embtype == "codebert" and "version_0" in csv_file:
+                selected_csv = csv_file
+                break
+            elif embtype == "graphcodebert" and "version_1" in csv_file:
+                selected_csv = csv_file
+                break
+        
+        if not selected_csv and csv_files:
+            selected_csv = csv_files[0]
+        
+        if selected_csv:
+            df = pd.read_csv(selected_csv)
+            print(f"  CSV文件列名: {list(df.columns)}")
+            
+            # 提取验证损失
+            if 'val_loss_epoch' in df.columns:
+                valid_losses = df['val_loss_epoch'].dropna()
+                if not valid_losses.empty:
+                    best_val_loss = valid_losses.min()
+            elif 'val_loss' in df.columns:
+                valid_losses = df['val_loss'].dropna()
+                if not valid_losses.empty:
+                    best_val_loss = valid_losses.min()
+            
+            # 尝试从CSV中提取F1和AUROC
+            if 'val_f1' in df.columns:
+                valid_f1s = df['val_f1'].dropna()
+                if not valid_f1s.empty:
+                    csv_f1 = valid_f1s.max()
+            
+            if 'val_auroc' in df.columns:
+                valid_aurocs = df['val_auroc'].dropna()
+                if not valid_aurocs.empty:
+                    csv_auroc = valid_aurocs.max()
+            elif 'auroc' in df.columns:
+                valid_aurocs = df['auroc'].dropna()
+                if not valid_aurocs.empty:
+                    csv_auroc = valid_aurocs.max()
     
-    # 查找AUROC值
-    if 'val_auroc' in df.columns:
-        valid_aurocs = df['val_auroc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    elif 'auroc' in df.columns:
-        valid_aurocs = df['auroc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    elif 'test_auroc' in df.columns:
-        valid_aurocs = df['test_auroc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    elif 'roc_auc' in df.columns:
-        valid_aurocs = df['roc_auc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
+    # 如果CSV中没有F1和AUROC，则加载模型计算
+    if csv_f1 is None or csv_auroc is None:
+        print(f"  CSV中缺少F1或AUROC数据，加载模型计算...")
+        try:
+            # 加载模型
+            model = lvd.LitGNN.load_from_checkpoint(checkpoint_path)
+            model.eval()
+            
+            # 加载测试数据
+            data_module = lvd.BigVulDatasetLineVDDataModule(
+                batch_size=256,
+                sample=-1,
+                methodlevel=False,
+                nsampling=False,
+                gtype=config.get("gtype", "pdg+raw"),
+                splits=config.get("splits", "default"),
+                feat=config.get("embtype", "graphcodebert")
+            )
+            data_module.setup()
+            test_loader = data_module.test_dataloader()
+            
+            # 收集预测结果
+            predictions = []
+            labels = []
+            probabilities = []
+            
+            with torch.no_grad():
+                for batch in test_loader:
+                    logits = model(batch)
+                    prob = torch.softmax(logits, dim=1)
+                    pred = torch.argmax(prob, dim=1)
+                    lbl = batch.ndata["_VULN"]
+                    
+                    predictions.extend(pred.cpu().numpy())
+                    labels.extend(lbl.cpu().numpy())
+                    probabilities.extend(prob[:, 1].cpu().numpy())
+            
+            # 计算F1值和AUROC
+            if csv_f1 is None:
+                csv_f1 = f1_score(labels, predictions)
+            if csv_auroc is None:
+                csv_auroc = roc_auc_score(labels, probabilities)
+            
+            print(f"  计算得到 F1值: {csv_f1:.4f}")
+            print(f"  计算得到 AUROC: {csv_auroc:.4f}")
+            
+        except Exception as e:
+            print(f"  加载模型计算失败: {e}")
     
-    # 查找准确率作为参考（CSV文件中没有直接的F1值）
-    accuracy = None
-    if 'val_acc' in df.columns:
-        valid_accs = df['val_acc'].dropna()
-        if not valid_accs.empty:
-            accuracy = valid_accs.max()
-    
-    # 打印结果
     print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
-    print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
-    print(f"  准确率: {accuracy:.4f}" if accuracy is not None else "  准确率: 未找到")
+    print(f"  F1值: {csv_f1:.4f}" if csv_f1 is not None else "  F1值: 未找到")
+    print(f"  AUROC: {csv_auroc:.4f}" if csv_auroc is not None else "  AUROC: 未找到")
     
     # 存储结果
     result = {
         "embedding_type": embtype,
         "val_loss": best_val_loss,
-        "f1": f1,
-        "auroc": auroc
+        "f1": csv_f1,
+        "auroc": csv_auroc
     }
     
     results.append(result)

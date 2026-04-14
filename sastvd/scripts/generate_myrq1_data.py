@@ -106,44 +106,36 @@ for item in checkpoint_paths:
     
     # 尝试从实验目录中读取配置文件
     print("\n读取实验配置...")
+    # 从检查点路径获取目录路径
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+    # 查找当前目录或父目录下的params.json
+    config_files = glob.glob(os.path.join(checkpoint_dir, "params.json"))
+    if not config_files:
+        # 如果当前目录没有，查找父目录
+        parent_dir = os.path.dirname(checkpoint_dir)
+        config_files = glob.glob(os.path.join(parent_dir, "params.json"))
+    if not config_files:
+        print(f"错误: 未找到配置文件 params.json")
+        print(f"请确保配置文件存在于以下目录中:")
+        print(f"  {checkpoint_dir}")
+        print(f"  {parent_dir}")
+        exit(1)
+    
+    # 读取配置文件
     try:
-        # 查找当前嵌入类型目录下的params.json
-        config_files = glob.glob(os.path.join(emb_dir, "params.json"))
-        if not config_files:
-            # 如果当前目录没有，查找父目录
-            config_files = glob.glob(os.path.join(os.path.dirname(emb_dir), "params.json"))
-        if config_files:
-            with open(config_files[0], 'r') as f:
-                config = json.load(f)
-            datamodule_args = {
-                "batch_size": config.get("batch_size", 1024),
-                "nsampling_hops": config.get("nsampling_hops", 2),
-                "gtype": config.get("gtype", "pdg+raw"),
-                "splits": config.get("splits", "default"),
-                "feat": config.get("embtype", emb_type)
-            }
-            print(f"使用配置: {datamodule_args}")
-        else:
-            # 使用默认配置
-            datamodule_args = {
-                "batch_size": 1024,
-                "nsampling_hops": 2,
-                "gtype": "pdg+raw",
-                "splits": "default",
-                "feat": emb_type
-            }
-            print(f"使用默认配置: {datamodule_args}")
-    except Exception as e:
-        print(f"获取配置时出错: {e}")
-        # 使用默认配置
+        with open(config_files[0], 'r') as f:
+            config = json.load(f)
         datamodule_args = {
-            "batch_size": 1024,
-            "nsampling_hops": 2,
-            "gtype": "pdg+raw",
-            "splits": "default",
-            "feat": emb_type
+            "batch_size": config.get("batch_size", 1024),
+            "nsampling_hops": config.get("nsampling_hops", 2),
+            "gtype": config.get("gtype", "pdg+raw"),
+            "splits": config.get("splits", "default"),
+            "feat": config.get("embtype", emb_type)
         }
-        print(f"使用默认配置: {datamodule_args}")
+        print(f"使用配置: {datamodule_args}")
+    except Exception as e:
+        print(f"错误: 读取配置文件时出错: {e}")
+        exit(1)
     
     # 创建数据模块
     data = lvd.BigVulDatasetLineVDDataModule(**datamodule_args)

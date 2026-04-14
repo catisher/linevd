@@ -202,6 +202,7 @@ for trial_dir in trial_dirs:
         if not valid_accs.empty:
             accuracy = valid_accs.max()
     
+    # 打印结果
     print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
     print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
     print(f"  准确率: {accuracy:.4f}" if accuracy is not None else "  准确率: 未找到")
@@ -216,9 +217,6 @@ for trial_dir in trial_dirs:
     
     results.append(result)
     print(f"✓ 成功导出 {embtype} 的结果")
-    print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
-    print(f"  F1值: {f1:.4f}" if f1 is not None else "  F1值: 未找到")
-    print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
 
 # 导出结果
 if results:

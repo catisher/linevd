@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 导出LineVD项目中myrq2实验的训练数据
-专门用于导出残差连接有效性实验的对比数据
+专门用于导出有无残差连接的对比数据
 包括验证损失、AUROC、F1值等指标，并生成对比图
 """
 
@@ -69,87 +69,142 @@ for trial_dir in trial_dirs:
     # 提取模型类型
     modeltype = config.get("modeltype", "")
     print(f"  模型类型: '{modeltype}'")
-    if modeltype not in ["gat2layer", "gat2layer+residual"]:
-        print(f"  模型类型不在预期列表中，跳过")
-        continue
     
-    print(f"处理 {modeltype} 试验...")
+    # 确定是否有残差连接
+    if "residual" in modeltype.lower():
+        residual = "有残差连接"
+    else:
+        residual = "无残差连接"
+    print(f"  残差连接: {residual}")
     
-    # 查找训练日志（递归查找）
-    csv_files = glob.glob(f"{trial_dir}/**/csv_logs/*.csv", recursive=True)
+    # 打印调试信息
+    print(f"  试验目录: {trial_dir}")
+    parent_dir = os.path.dirname(trial_dir)
+    print(f"  父目录: {parent_dir}")
+    grandparent_dir = os.path.dirname(parent_dir)
+    print(f"  祖父目录: {grandparent_dir}")
+    
+    # 检查祖父目录的内容（这是csv_logs所在的目录）
+    print(f"\n  祖父目录内容:")
+    if os.path.exists(grandparent_dir):
+        for item in os.listdir(grandparent_dir):
+            item_path = os.path.join(grandparent_dir, item)
+            if os.path.isdir(item_path):
+                print(f"    目录: {item}")
+            else:
+                print(f"    文件: {item}")
+    
+    # 检查csv_logs目录的内容
+    csv_logs_dir = os.path.join(grandparent_dir, "csv_logs")
+    print(f"\n  csv_logs目录内容:")
+    if os.path.exists(csv_logs_dir):
+        for item in os.listdir(csv_logs_dir):
+            item_path = os.path.join(csv_logs_dir, item)
+            if os.path.isdir(item_path):
+                print(f"    目录: {item}")
+                # 检查子目录的内容
+                for subitem in os.listdir(item_path):
+                    subitem_path = os.path.join(item_path, subitem)
+                    print(f"      - {subitem}")
+            else:
+                print(f"    文件: {item}")
+    else:
+        print(f"    csv_logs目录不存在")
+    
+    # 查找训练日志（在多个目录中查找）
+    csv_files = []
+    # 直接检查csv_logs目录及其子目录（如version_0、version_1）
+    if os.path.exists(csv_logs_dir):
+        # 查找csv_logs目录下的所有CSV文件
+        csv_files.extend(glob.glob(f"{csv_logs_dir}/**/*.csv", recursive=True))
+    
+    print(f"\n  找到 {len(csv_files)} 个CSV文件")
+    for i, f in enumerate(csv_files):
+        print(f"    {i+1}. {f}")
+    
     if not csv_files:
         print(f"  未找到训练日志，跳过")
         continue
     
-    print(f"  找到训练日志: {csv_files[0]}")
+    # 选择第一个CSV文件
+    selected_csv = csv_files[0]
+    print(f"  找到训练日志: {selected_csv}")
     
     # 读取训练日志
-    df = pd.read_csv(csv_files[0])
+    df = pd.read_csv(selected_csv)
+    
+    # 打印CSV文件的列名，以便了解文件结构
+    print(f"  CSV文件列名: {list(df.columns)}")
+    
+    # 打印CSV文件的前几行，以便了解数据结构
+    print(f"  CSV文件前5行:")
+    print(df.head())
     
     # 提取最佳验证损失
-    best_val_loss = df['val_loss'].min() if 'val_loss' in df.columns else None
+    best_val_loss = None
+    if 'val_loss_epoch' in df.columns:
+        # 过滤掉NaN值，然后取最小值
+        valid_losses = df['val_loss_epoch'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
+    elif 'val_loss' in df.columns:
+        valid_losses = df['val_loss'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
+    elif 'valid_loss' in df.columns:
+        valid_losses = df['valid_loss'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
+    elif 'validation_loss' in df.columns:
+        valid_losses = df['validation_loss'].dropna()
+        if not valid_losses.empty:
+            best_val_loss = valid_losses.min()
     
-    # 查找检查点（递归查找）
-    checkpoint_files = glob.glob(f"{trial_dir}/**/checkpoint_*/checkpoint", recursive=True)
-    if not checkpoint_files:
-        print(f"  未找到检查点，跳过")
-        continue
+    # 尝试从CSV文件中提取F1值和AUROC（如果有）
+    f1 = None
+    auroc = None
     
-    print(f"  找到检查点: {checkpoint_files[0]}")
+    # 查找AUROC值
+    if 'val_auroc' in df.columns:
+        valid_aurocs = df['val_auroc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    elif 'auroc' in df.columns:
+        valid_aurocs = df['auroc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    elif 'test_auroc' in df.columns:
+        valid_aurocs = df['test_auroc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
+    elif 'roc_auc' in df.columns:
+        valid_aurocs = df['roc_auc'].dropna()
+        if not valid_aurocs.empty:
+            auroc = valid_aurocs.max()
     
-    checkpoint_path = checkpoint_files[0]
+    # 查找准确率作为参考（CSV文件中没有直接的F1值）
+    accuracy = None
+    if 'val_acc' in df.columns:
+        valid_accs = df['val_acc'].dropna()
+        if not valid_accs.empty:
+            accuracy = valid_accs.max()
     
-    try:
-        # 加载模型
-        model = lvd.LitGNN.load_from_checkpoint(checkpoint_path)
-        model.eval()
-        
-        # 加载测试数据
-        data_module = lvd.BigVulDatasetLineVDDataModule(
-            batch_size=256,
-            sample=-1,
-            methodlevel=False,
-            nsampling=False,
-            gtype=config.get("gtype", "pdg+raw"),
-            splits=config.get("splits", "default"),
-            feat=config.get("embtype", "graphcodebert")
-        )
-        data_module.setup()
-        test_loader = data_module.test_dataloader()
-        
-        # 收集预测结果
-        predictions = []
-        labels = []
-        probabilities = []
-        
-        with torch.no_grad():
-            for batch in test_loader:
-                logits = model(batch)
-                prob = torch.softmax(logits, dim=1)
-                pred = torch.argmax(prob, dim=1)
-                lbl = batch.ndata["_VULN"]
-                
-                predictions.extend(pred.cpu().numpy())
-                labels.extend(lbl.cpu().numpy())
-                probabilities.extend(prob[:, 1].cpu().numpy())  # 漏洞概率
-        
-        # 计算F1值和AUROC
-        f1 = f1_score(labels, predictions)
-        auroc = roc_auc_score(labels, probabilities)
-        
-        # 存储结果
-        result = {
-            "model_type": modeltype,
-            "val_loss": best_val_loss,
-            "f1": f1,
-            "auroc": auroc
-        }
-        
-        results.append(result)
-        print(f"✓ 成功导出 {modeltype} 的结果")
-        
-    except Exception as e:
-        print(f"✗ 处理 {trial_dir} 失败: {e}")
+    # 打印结果
+    print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
+    print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
+    print(f"  准确率: {accuracy:.4f}" if accuracy is not None else "  准确率: 未找到")
+    
+    # 存储结果
+    result = {
+        "residual": residual,
+        "modeltype": modeltype,
+        "val_loss": best_val_loss,
+        "f1": f1,
+        "auroc": auroc
+    }
+    
+    results.append(result)
+    print(f"✓ 成功导出 {residual} 的结果")
 
 # 导出结果
 if results:
@@ -165,39 +220,66 @@ if results:
     # 生成对比图
     print("\n生成对比图...")
     
-    # 设置中文字体
-    plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-    plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+    # 检查是否有有效的指标值
+    has_valid_data = False
+    for col in ['f1', 'auroc', 'val_loss']:
+        if results_df[col].notna().any():
+            has_valid_data = True
+            break
     
-    # 指标对比图
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    
-    # F1值对比
-    axes[0].bar(results_df['model_type'], results_df['f1'])
-    axes[0].set_title('F1值对比')
-    axes[0].set_ylabel('F1值')
-    axes[0].set_ylim(0, 1)
-    
-    # AUROC对比
-    axes[1].bar(results_df['model_type'], results_df['auroc'])
-    axes[1].set_title('AUROC对比')
-    axes[1].set_ylabel('AUROC值')
-    axes[1].set_ylim(0, 1)
-    
-    # 验证损失对比
-    axes[2].bar(results_df['model_type'], results_df['val_loss'])
-    axes[2].set_title('验证损失对比')
-    axes[2].set_ylabel('验证损失')
-    
-    plt.tight_layout()
-    
-    # 保存图表
-    plot_file = os.path.join(output_dir, "myrq2_residual_comparison.png")
-    plt.savefig(plot_file, dpi=300, bbox_inches='tight')
-    print(f"✓ 对比图已保存到 {plot_file}")
-    
-    # 显示图表
-    plt.show()
+    if has_valid_data:
+        # 设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
+        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+        
+        # 指标对比图
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        
+        # F1值对比
+        if 'f1' in results_df.columns and results_df['f1'].notna().any():
+            axes[0].bar(results_df['residual'], results_df['f1'])
+            axes[0].set_title('F1值对比')
+            axes[0].set_ylabel('F1值')
+            axes[0].set_ylim(0, 1)
+        else:
+            axes[0].set_title('F1值对比')
+            axes[0].set_ylabel('F1值')
+            axes[0].set_ylim(0, 1)
+            axes[0].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[0].transAxes)
+        
+        # AUROC对比
+        if 'auroc' in results_df.columns and results_df['auroc'].notna().any():
+            axes[1].bar(results_df['residual'], results_df['auroc'])
+            axes[1].set_title('AUROC对比')
+            axes[1].set_ylabel('AUROC值')
+            axes[1].set_ylim(0, 1)
+        else:
+            axes[1].set_title('AUROC对比')
+            axes[1].set_ylabel('AUROC值')
+            axes[1].set_ylim(0, 1)
+            axes[1].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[1].transAxes)
+        
+        # 验证损失对比
+        if 'val_loss' in results_df.columns and results_df['val_loss'].notna().any():
+            axes[2].bar(results_df['residual'], results_df['val_loss'])
+            axes[2].set_title('验证损失对比')
+            axes[2].set_ylabel('验证损失')
+        else:
+            axes[2].set_title('验证损失对比')
+            axes[2].set_ylabel('验证损失')
+            axes[2].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[2].transAxes)
+        
+        plt.tight_layout()
+        
+        # 保存图表
+        plot_file = os.path.join(output_dir, "myrq2_residual_comparison.png")
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        print(f"✓ 对比图已保存到 {plot_file}")
+        
+        # 显示图表
+        plt.show()
+    else:
+        print("未找到有效的指标数据，跳过生成对比图")
 else:
     print("\n未找到任何实验结果")
 

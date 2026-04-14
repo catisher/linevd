@@ -373,7 +373,8 @@ model = LitCodebert()
 data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
 checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val_loss")
 trainer = pl.Trainer(
-    gpus=1,
+    #gpus=1,
+    accelerator="cpu",
     auto_lr_find=True,
     default_root_dir=savepath,
     num_sanity_val_steps=0,

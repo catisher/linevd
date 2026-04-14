@@ -37,7 +37,7 @@ def calc_f1(tp, fp, fn):
 checkpoint_paths = [
     # 在此处添加数据
     {"gnn_type": "gcn", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq3_-1/202604090015_2f49f45_规范实验/tune_linevd_myrq3/train_linevd_35c87_00000_0_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gat,gtype=pdg_raw,hdropout=0.300_2026-04-09_00-15-50/checkpoint_000099"},
-    {"gnn_type": "gat", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq3_-1/202604090015_2f49f45_规范实验/tune_linevd_myrq3/train_linevd_35c87_00001_1_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-15-50/checkpoint_000099"},
+    {"gnn_type": "gat", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq3_-1/202604090015_2f49f45_规范实验/tune_linevd_myrq3/train_linevd_35c87_00001_1_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-15-50/checkpoint_000049"},
     {"gnn_type": "gatv2", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq3_-1/202604090015_2f49f45_规范实验/tune_linevd_myrq3/train_linevd_35c87_00002_2_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gcn,gtype=pdg_raw,hdropout=0.300_2026-04-09_00-15-50/checkpoint_000099"},
 ]
 # ==============================================

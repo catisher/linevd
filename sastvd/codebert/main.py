@@ -137,8 +137,10 @@ class BigVulDatasetNLPLine:
                 # 添加标签（1=漏洞行，0=非漏洞行）
                 self.labels.append(1 if idx in vuln_lines else 0)
 
+        # 检查本地是否存在 CodeBERT 模型
+        codebert_base_path = svd.external_dir() / "codebert-base"
         # 加载 CodeBERT 分词器
-        tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
+        tokenizer = AutoTokenizer.from_pretrained(codebert_base_path)
         # 分词参数
         tk_args = {"padding": True, "truncation": True, "return_tensors": "pt"}
         # 处理文本，添加分隔符作为前缀
@@ -235,8 +237,10 @@ class LitCodebert(pl.LightningModule):
         self.lr = lr
         # 保存超参数（用于模型检查点和日志）
         self.save_hyperparameters()
+        # 检查本地是否存在 CodeBERT 模型
+        codebert_base_path = svd.external_dir() / "codebert-base"
         # 加载预训练的 CodeBERT 模型
-        self.bert = AutoModel.from_pretrained("microsoft/codebert-base")
+        self.bert = AutoModel.from_pretrained(codebert_base_path)
         # 第一全连接层：将 CodeBERT 输出的 768 维特征映射到 256 维
         self.fc1 = torch.nn.Linear(768, 256)
         # 第二全连接层：将 256 维特征映射到 2 维（二分类）

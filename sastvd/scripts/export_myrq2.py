@@ -50,8 +50,8 @@ print(f"输出目录: {output_dir}")
 # ╰─────────────────────────────────────────────────────────────╯
 results = [
     # 在此处添加数据
-    {"residual": "无残差连接", "modeltype": "gat", "val_loss": 0.24368, "f1": 0.1587, "auroc": 0.70813},
-    {"residual": "有残差连接", "modeltype": "gat_residual", "val_loss": 0.22905, "f1": 0.1752, "auroc": 0.70938},
+    {"residual": "No Residual", "modeltype": "gat", "val_loss": 0.24368, "f1": 0.1587, "auroc": 0.70813},
+    {"residual": "With Residual", "modeltype": "gat_residual", "val_loss": 0.22905, "f1": 0.1752, "auroc": 0.70938},
 ]
 # ==============================================
 

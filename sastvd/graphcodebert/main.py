@@ -421,6 +421,7 @@ if __name__ == "__main__":
         default_root_dir=savepath,
         num_sanity_val_steps=0,
         callbacks=[checkpoint_callback],
+        max_epochs=3,
     )
     #tuned = trainer.tune(model, data)
     trainer.fit(model, data)

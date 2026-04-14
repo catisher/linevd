@@ -67,14 +67,34 @@ for emb_dir in emb_type_dirs:
     
     # 查找模型检查点
     checkpoint_files = []
+    # 递归查找所有 .ckpt 文件
     for root, dirs, files in os.walk(emb_dir):
         for file in files:
             if file.endswith(".ckpt"):
                 checkpoint_files.append(os.path.join(root, file))
     
     if not checkpoint_files:
-        print(f"未找到 {emb_type} 的模型检查点文件，跳过...")
-        continue
+        # 尝试查找 ray tune 常见的检查点目录结构
+        print(f"未找到 {emb_type} 的模型检查点文件，尝试查找子目录...")
+        # 检查可能的检查点目录
+        possible_checkpoint_dirs = [
+            os.path.join(emb_dir, "checkpoints"),
+            os.path.join(emb_dir, "checkpoint"),
+            os.path.join(emb_dir, "model"),
+            os.path.join(emb_dir, "models")
+        ]
+        
+        for checkpoint_dir in possible_checkpoint_dirs:
+            if os.path.exists(checkpoint_dir):
+                print(f"检查目录: {checkpoint_dir}")
+                for root, dirs, files in os.walk(checkpoint_dir):
+                    for file in files:
+                        if file.endswith(".ckpt"):
+                            checkpoint_files.append(os.path.join(root, file))
+    
+    if not checkpoint_files:
+        print(f"错误: 未找到 {emb_type} 的模型检查点文件")
+        exit(1)
     
     print(f"找到 {len(checkpoint_files)} 个检查点文件")
     for i, f in enumerate(checkpoint_files):

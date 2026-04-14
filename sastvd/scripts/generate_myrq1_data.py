@@ -68,6 +68,30 @@ for item in checkpoint_paths:
         print(f"错误: 检查点文件不存在: {checkpoint_path}")
         exit(1)
     
+    # 检查是否是目录
+    if os.path.isdir(checkpoint_path):
+        print(f"检查点路径是目录，在目录中查找检查点文件...")
+        # 在目录中查找检查点文件
+        try:
+            dir_files = os.listdir(checkpoint_path)
+            # 查找常见的检查点文件
+            checkpoint_files_in_dir = []
+            for f in dir_files:
+                if any(f.endswith(ext) for ext in [".ckpt", ".pt", ".pth", ".bin"]) or "checkpoint" in f:
+                    checkpoint_files_in_dir.append(f)
+            
+            if not checkpoint_files_in_dir:
+                print(f"错误: 在目录中未找到检查点文件: {checkpoint_path}")
+                exit(1)
+            
+            # 使用第一个找到的检查点文件
+            checkpoint_file = os.path.join(checkpoint_path, checkpoint_files_in_dir[0])
+            print(f"在目录中找到检查点文件: {checkpoint_file}")
+            checkpoint_path = checkpoint_file
+        except Exception as e:
+            print(f"读取目录时出错: {e}")
+            exit(1)
+    
     print(f"使用检查点文件: {checkpoint_path}")
     
     # 加载模型

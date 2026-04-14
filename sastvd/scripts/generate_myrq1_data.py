@@ -24,94 +24,51 @@ def calc_f1(tp, fp, fn):
         return 0.0
     return 2 * ((prec * rec) / (prec + rec))
 
+# ==============================================
+# 在这里填写不同嵌入类型的检查点文件路径
+# 格式：{"embedding_type": "嵌入类型名称", "checkpoint_path": "检查点文件路径"}
+# 示例：
+# checkpoint_paths = [
+#     {"embedding_type": "codebert", "checkpoint_path": "/path/to/codebert/checkpoint_000099"},
+#     {"embedding_type": "graphcodebert", "checkpoint_path": "/path/to/graphcodebert/checkpoint_000099"},
+# ]
+checkpoint_paths = [
+    # 在此处添加数据
+    {"embedding_type": "codebert", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq1_-1/202604070637_2f49f45_规范实验/tune_linevd_myrq1/train_linevd_493c3_00000_0_batch_size=256,embtype=codebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3000,h_2026-04-07_06-38-09/checkpoint_000099"},
+    {"embedding_type": "graphcodebert", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq1_-1/202604070637_2f49f45_规范实验/tune_linevd_myrq1/train_linevd_493c3_00001_1_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-07_06-38-09/checkpoint_000099"},
+]
+# ==============================================
+
 print("开始使用实际模型进行 myrq1 实验分析...")
+
+# 检查用户是否填写了检查点路径
+if not checkpoint_paths:
+    print("错误: 请在代码中填写检查点文件路径")
+    print("请编辑文件 sastvd/scripts/generate_myrq1_data.py，在 checkpoint_paths 列表中填写检查点文件路径")
+    exit(1)
 
 # 设置输出目录
 output_dir = str(svd.outputs_dir() / "myrq1_empirical_results")
 os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
-# 查找 myrq1 实验目录
-print(f"在 {str(svd.processed_dir())} 中查找 myrq1 实验目录...")
-myrq1_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq1_*"))
-
-if not myrq1_dirs:
-    print("错误: 未找到 myrq1 实验目录，请确保模型已训练完成")
-    exit(1)
-
-myrq1_dir = myrq1_dirs[0]
-print(f"使用 myrq1 实验目录: {myrq1_dir}")
-
-# 查找不同嵌入类型的模型检查点
-print("\n查找不同嵌入类型的模型检查点...")
-# 查找包含 embtype=codebert 和 embtype=graphcodebert 的目录
-emb_type_dirs = []
-for root, dirs, files in os.walk(myrq1_dir):
-    for d in dirs:
-        if 'embtype=codebert' in d or 'embtype=graphcodebert' in d:
-            emb_type_dirs.append(os.path.join(root, d))
-
-if not emb_type_dirs:
-    print("错误: 未找到包含嵌入类型的目录，请确保模型已训练完成")
-    exit(1)
-
-print(f"找到 {len(emb_type_dirs)} 个嵌入类型目录:")
-for i, d in enumerate(emb_type_dirs):
-    print(f"  {i+1}. {d}")
+print(f"找到 {len(checkpoint_paths)} 个嵌入类型的检查点配置:")
+for i, item in enumerate(checkpoint_paths):
+    print(f"  {i+1}. {item['embedding_type']}: {item['checkpoint_path']}")
 
 # 处理每个嵌入类型
-for emb_dir in emb_type_dirs:
-    # 提取嵌入类型
-    emb_type = "codebert" if "embtype=codebert" in emb_dir else "graphcodebert"
+for item in checkpoint_paths:
+    emb_type = item['embedding_type']
+    checkpoint_path = item['checkpoint_path']
+    
     print(f"\n处理 {emb_type} 嵌入类型...")
     
-    # 查找模型检查点
-    checkpoint_files = []
-    # 递归查找所有可能的检查点文件
-    print(f"在 {emb_dir} 中搜索检查点文件...")
-    
-    # 首先检查目录是否存在
-    if not os.path.exists(emb_dir):
-        print(f"错误: 目录不存在: {emb_dir}")
+    # 检查检查点文件是否存在
+    if not os.path.exists(checkpoint_path):
+        print(f"错误: 检查点文件不存在: {checkpoint_path}")
         exit(1)
     
-    # 列出目录中的所有文件，用于调试
-    print("目录中的文件:")
-    try:
-        for item in os.listdir(emb_dir):
-            item_path = os.path.join(emb_dir, item)
-            if os.path.isfile(item_path):
-                print(f"  文件: {item}")
-            else:
-                print(f"  目录: {item}")
-    except Exception as e:
-        print(f"读取目录时出错: {e}")
-    
-    # 递归搜索检查点文件
-    for root, dirs, files in os.walk(emb_dir):
-        print(f"搜索目录: {root}")
-        print(f"  子目录: {dirs}")
-        print(f"  文件: {files}")
-        for file in files:
-            # 检查常见的检查点文件扩展名或无扩展名的检查点文件
-            if any(file.endswith(ext) for ext in [".ckpt", ".pt", ".pth"]) or file.startswith("checkpoint_"):
-                checkpoint_files.append(os.path.join(root, file))
-                print(f"  找到: {os.path.join(root, file)}")
-    
-    if not checkpoint_files:
-        print(f"错误: 未找到 {emb_type} 的模型检查点文件")
-        print(f"请确保模型已训练完成，且检查点文件存在于以下目录中:")
-        print(f"  {emb_dir}")
-        print("检查点文件通常以 .ckpt, .pt, .pth 扩展名结尾，或命名为 checkpoint_*")
-        exit(1)
-    
-    print(f"找到 {len(checkpoint_files)} 个检查点文件")
-    for i, f in enumerate(checkpoint_files):
-        print(f"  {i+1}. {f}")
-    
-    # 使用第一个检查点文件
-    checkpoint_path = checkpoint_files[0]
-    print(f"\n使用检查点文件: {checkpoint_path}")
+    print(f"使用检查点文件: {checkpoint_path}")
     
     # 加载模型
     print("\n加载模型...")

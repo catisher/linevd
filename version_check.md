@@ -119,6 +119,12 @@ scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_results/myrq1_results.csv .
 scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq2_results/myrq2_results.csv .
 scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_results/myrq1_embedding_comparison.png .
 
+scp wmy@10.2.0.11:~/linevd/myrq1.log .
+scp wmy@10.2.0.11:~/linevd/myrq2.log .
+scp wmy@10.2.0.11:~/linevd/myrq3.log .
+scp wmy@10.2.0.11:~/linevd/myrq4.log .
+
+
 
 nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
 

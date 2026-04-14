@@ -25,9 +25,33 @@ print(f"输出目录: {output_dir}")
 #     {"residual": "无残差连接", "modeltype": "gat", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
 #     {"residual": "有残差连接", "modeltype": "gat_residual", "val_loss": 0.12, "f1": 0.88, "auroc": 0.94},
 # ]
+
+# ╭─────────────────────────────────────────────────────────────╮
+# │ Trial train_linevd_f0bfb_00000 result                       │
+# ├─────────────────────────────────────────────────────────────┤
+# │ checkpoint_dir_name                       checkpoint_000099 │
+# │ time_this_iter_s                                    0.68949 │
+# │ time_total_s                                    78613.09312 │
+# │ training_iteration                                      200 │
+# │ train_loss                                          0.13902 │
+# │ val_auroc                                           0.70813 │
+# │ val_loss                                            0.24368 │
+# ╰─────────────────────────────────────────────────────────────╯
+# ╭─────────────────────────────────────────────────────────────╮
+# │ Trial train_linevd_f0bfb_00001 result                       │
+# ├─────────────────────────────────────────────────────────────┤
+# │ checkpoint_dir_name                       checkpoint_000099 │
+# │ time_this_iter_s                                    0.72117 │
+# │ time_total_s                                    78297.23612 │
+# │ training_iteration                                      200 │
+# │ train_loss                                          0.16944 │
+# │ val_auroc                                           0.70938 │
+# │ val_loss                                            0.22905 │
+# ╰─────────────────────────────────────────────────────────────╯
 results = [
     # 在此处添加数据
-    # 示例：{"residual": "无残差连接", "modeltype": "gat", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+    {"residual": "无残差连接", "modeltype": "gat", "val_loss": 0.24368, "f1": 0.1587, "auroc": 0.70813},
+    {"residual": "有残差连接", "modeltype": "gat_residual", "val_loss": 0.22905, "f1": 0.1752, "auroc": 0.70938},
 ]
 # ==============================================
 

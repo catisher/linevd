@@ -25,9 +25,32 @@ print(f"输出目录: {output_dir}")
 #     {"embedding_type": "codebert", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
 #     {"embedding_type": "graphcodebert", "val_loss": 0.12, "f1": 0.88, "auroc": 0.94},
 # ]
+# ╭─────────────────────────────────────────────────────────────╮
+# │ Trial train_linevd_493c3_00000 result                       │
+# ├─────────────────────────────────────────────────────────────┤
+# │ checkpoint_dir_name                       checkpoint_000099 │
+# │ time_this_iter_s                                    0.77926 │
+# │ time_total_s                                    79018.15466 │
+# │ training_iteration                                      200 │
+# │ train_loss                                          0.20043 │
+# │ val_auroc                                           0.63781 │
+# │ val_loss                                            0.20833 │
+# ╰─────────────────────────────────────────────────────────────╯
+# ╭─────────────────────────────────────────────────────────────╮
+# │ Trial train_linevd_493c3_00001 result                       │
+# ├─────────────────────────────────────────────────────────────┤
+# │ checkpoint_dir_name                       checkpoint_000099 │
+# │ time_this_iter_s                                    0.67267 │
+# │ time_total_s                                    78639.20343 │
+# │ training_iteration                                      200 │
+# │ train_loss                                          0.15194 │
+# │ val_auroc                                           0.71416 │
+# │ val_loss                                            0.23307 │
+# ╰─────────────────────────────────────────────────────────────╯
 results = [
     # 在此处添加数据
-    # 示例：{"embedding_type": "codebert", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+    {"embedding_type": "codebert", "val_loss": 0.20043, "f1": 0.09, "auroc": 0.63781},
+    {"embedding_type": "graphcodebert", "val_loss": 0.23307, "f1": 0.14, "auroc": 0.71416},
 ]
 # ==============================================
 

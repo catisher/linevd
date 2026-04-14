@@ -15,6 +15,11 @@ hpc/logs/*
 linevd-venv/
 miniconda.sh
 .vscode/
+# 日志文件
+*.log
+**/*.log
+logs/
+**/logs/
 #前端相关
 linevd-ui/frontend/node_modules
 linevd-ui/frontend/dist

@@ -187,8 +187,8 @@ for item in checkpoint_paths:
 print("\n生成嵌入类型对比数据...")
 # 收集所有嵌入类型的结果
 comparison_results = []
-for emb_dir in emb_type_dirs:
-    emb_type = "codebert" if "embtype=codebert" in emb_dir else "graphcodebert"
+for item in checkpoint_paths:
+    emb_type = item['embedding_type']
     # 读取函数级结果
     func_file = os.path.join(output_dir, f"myrq1_{emb_type}_func_results.csv")
     if os.path.exists(func_file):

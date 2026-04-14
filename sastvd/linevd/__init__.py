@@ -1571,9 +1571,15 @@ class LitGNN(pl.LightningModule):
         else:
             # 非方法级预测模式（行级或多任务）
             for out in outputs:
-                # 收集行级预测和标签
-                all_pred = th.cat([all_pred, out[0][0]])
-                all_true = th.cat([all_true, out[1][0]])
+                # 确保所有张量在同一设备上
+                if not all_pred:
+                    # 初始化 all_pred 和 all_true 时使用第一个张量的设备
+                    all_pred = out[0][0]
+                    all_true = out[1][0]
+                else:
+                    # 将新的张量移到与 all_pred 相同的设备
+                    all_pred = th.cat([all_pred, out[0][0].to(all_pred.device)])
+                    all_true = th.cat([all_true, out[1][0].to(all_true.device)])
                 # 收集方法级预测和标签
                 all_pred_f += out[0][1]
                 all_true_f += out[1][1]

@@ -248,7 +248,7 @@ class LitCodebert(pl.LightningModule):
         # 准确率指标
         self.accuracy = torchmetrics.Accuracy(task="binary")
         # AUC-ROC 指标（在 epoch 结束时计算）
-        self.auroc = torchmetrics.AUROC(task="binary", compute_on_step=False)
+        self.auroc = torchmetrics.AUROC(task="binary")
         # Matthews 相关系数指标（适用于不平衡数据集）
         self.mcc = torchmetrics.MatthewsCorrcoef(task="binary")
 

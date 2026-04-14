@@ -1570,9 +1570,9 @@ class LitGNN(pl.LightningModule):
             all_true = all_true.long()  # 确保标签类型为长整型
         else:
             # 非方法级预测模式（行级或多任务）
-            for out in outputs:
+            for i, out in enumerate(outputs):
                 # 确保所有张量在同一设备上
-                if not all_pred:
+                if i == 0:
                     # 初始化 all_pred 和 all_true 时使用第一个张量的设备
                     all_pred = out[0][0]
                     all_true = out[1][0]

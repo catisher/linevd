@@ -3,153 +3,39 @@
 导出LineVD项目中myrq4实验的训练数据
 专门用于导出损失函数对比实验的对比数据
 包括验证损失、AUROC、F1值等指标，并生成对比图
+用户可以直接在代码中填写数据
 """
 
 import os
-import glob
-import json
 import pandas as pd
-import torch
-import sastvd as svd
-import sastvd.linevd as lvd
-from sklearn.metrics import f1_score, roc_auc_score
 import matplotlib.pyplot as plt
 
-print("开始导出myrq4实验数据...")
+print("开始生成损失函数对比图...")
 
 # 设置输出目录为storage/outputs/myrq4_results
-output_dir = str(svd.outputs_dir() / "myrq4_results")
+output_dir = "storage/outputs/myrq4_results"
 os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
-# 查找myrq4实验目录
-print(f"在 {str(svd.processed_dir())} 中查找myrq4实验目录...")
-myrq4_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq4_*"))
-print(f"找到 {len(myrq4_dirs)} 个myrq4实验目录:")
-for i, d in enumerate(myrq4_dirs):
-    print(f"  {i+1}. {d}")
+# ==============================================
+# 在这里填写不同损失函数的性能数据
+# 格式：{"loss_type": "损失函数类型", "val_loss": 验证损失, "f1": F1值, "auroc": AUROC值}
+# 示例：
+# results = [
+#     {"loss_type": "ce", "val_loss": 0.16, "f1": 0.83, "auroc": 0.91},
+#     {"loss_type": "sce", "val_loss": 0.14, "f1": 0.86, "auroc": 0.93},
+#     {"loss_type": "focal", "val_loss": 0.12, "f1": 0.88, "auroc": 0.94},
+# ]
+results = [
+    # 在此处添加数据
+    # 示例：{"loss_type": "ce", "val_loss": 0.16, "f1": 0.83, "auroc": 0.91},
+]
+# ==============================================
 
-if not myrq4_dirs:
-    print("未找到myrq4实验目录，退出程序")
+# 检查是否有数据
+if not results:
+    print("未填写任何数据，退出程序")
     exit(1)
-
-myrq4_dir = myrq4_dirs[0]
-print(f"使用myrq4实验目录: {myrq4_dir}")
-
-# 存储实验结果
-results = []
-
-# 查找所有试验目录（递归查找包含loss的目录）
-print(f"\n查找 {myrq4_dir} 下的所有试验目录...")
-trial_dirs = []
-for root, dirs, files in os.walk(myrq4_dir):
-    for d in dirs:
-        if 'loss=' in d:
-            trial_dirs.append(os.path.join(root, d))
-print(f"找到 {len(trial_dirs)} 个试验目录:")
-for i, d in enumerate(trial_dirs):
-    print(f"  {i+1}. {d}")
-
-for trial_dir in trial_dirs:
-    print(f"\n处理试验目录: {os.path.basename(trial_dir)}")
-    if not os.path.isdir(trial_dir):
-        print(f"  不是目录，跳过")
-        continue
-    
-    # 读取配置文件
-    config_file = os.path.join(trial_dir, "params.json")
-    if not os.path.exists(config_file):
-        print(f"  未找到params.json文件，跳过")
-        continue
-    
-    print(f"  找到params.json文件")
-    with open(config_file, 'r') as f:
-        config = json.load(f)
-    
-    # 提取损失函数类型
-    loss_type = config.get("loss", "")
-    print(f"  损失函数类型: '{loss_type}'")
-    if loss_type not in ["ce", "sce", "focal"]:
-        print(f"  损失函数类型不在预期列表中，跳过")
-        continue
-    
-    print(f"处理 {loss_type} 试验...")
-    
-    # 查找训练日志（递归查找）
-    csv_files = glob.glob(f"{trial_dir}/**/csv_logs/*.csv", recursive=True)
-    if not csv_files:
-        print(f"  未找到训练日志，跳过")
-        continue
-    
-    print(f"  找到训练日志: {csv_files[0]}")
-    
-    # 读取训练日志
-    df = pd.read_csv(csv_files[0])
-    
-    # 提取最佳验证损失
-    best_val_loss = df['val_loss'].min() if 'val_loss' in df.columns else None
-    
-    # 查找检查点（递归查找）
-    checkpoint_files = glob.glob(f"{trial_dir}/**/checkpoint_*/checkpoint", recursive=True)
-    if not checkpoint_files:
-        print(f"  未找到检查点，跳过")
-        continue
-    
-    print(f"  找到检查点: {checkpoint_files[0]}")
-    
-    checkpoint_path = checkpoint_files[0]
-    
-    try:
-        # 加载模型
-        model = lvd.LitGNN.load_from_checkpoint(checkpoint_path)
-        model.eval()
-        
-        # 加载测试数据
-        data_module = lvd.BigVulDatasetLineVDDataModule(
-            batch_size=256,
-            sample=-1,
-            methodlevel=False,
-            nsampling=False,
-            gtype=config.get("gtype", "pdg+raw"),
-            splits=config.get("splits", "default"),
-            feat=config.get("embtype", "graphcodebert")
-        )
-        data_module.setup()
-        test_loader = data_module.test_dataloader()
-        
-        # 收集预测结果
-        predictions = []
-        labels = []
-        probabilities = []
-        
-        with torch.no_grad():
-            for batch in test_loader:
-                logits = model(batch)
-                prob = torch.softmax(logits, dim=1)
-                pred = torch.argmax(prob, dim=1)
-                lbl = batch.ndata["_VULN"]
-                
-                predictions.extend(pred.cpu().numpy())
-                labels.extend(lbl.cpu().numpy())
-                probabilities.extend(prob[:, 1].cpu().numpy())  # 漏洞概率
-        
-        # 计算F1值和AUROC
-        f1 = f1_score(labels, predictions)
-        auroc = roc_auc_score(labels, probabilities)
-        
-        # 存储结果
-        result = {
-            "loss_type": loss_type,
-            "val_loss": best_val_loss,
-            "f1": f1,
-            "auroc": auroc
-        }
-        
-        results.append(result)
-        print(f"✓ 成功导出 {loss_type} 的结果")
-        
-    except Exception as e:
-        print(f"✗ 处理 {trial_dir} 失败: {e}")
 
 # 导出结果
 if results:

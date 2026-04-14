@@ -1,406 +1,103 @@
 #!/usr/bin/env python3
 """
 导出LineVD项目中myrq1实验的训练数据
-专门用于导出CodeBERT和GraphCodeBERT的对比数据
+专门用于导出不同嵌入类型的对比数据
 包括验证损失、AUROC、F1值等指标，并生成对比图
+用户可以直接在代码中填写数据
 """
 
 import os
-import glob
-import json
 import pandas as pd
-import torch
-import sastvd as svd
-import sastvd.linevd as lvd
-from sklearn.metrics import f1_score, roc_auc_score
 import matplotlib.pyplot as plt
 
-print("开始导出myrq1实验数据...")
+print("开始生成不同嵌入类型的对比图...")
 
 # 设置输出目录为storage/outputs/myrq1_results
-output_dir = str(svd.outputs_dir() / "myrq1_results")
+output_dir = "storage/outputs/myrq1_results"
 os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
-# 查找myrq1实验目录
-print(f"在 {str(svd.processed_dir())} 中查找myrq1实验目录...")
-myrq1_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq1_*"))
-print(f"找到 {len(myrq1_dirs)} 个myrq1实验目录:")
-for i, d in enumerate(myrq1_dirs):
-    print(f"  {i+1}. {d}")
+# ==============================================
+# 在这里填写不同嵌入类型的性能数据
+# 格式：{"embedding_type": "嵌入类型名称", "val_loss": 验证损失, "f1": F1值, "auroc": AUROC值}
+# 示例：
+# results = [
+#     {"embedding_type": "codebert", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+#     {"embedding_type": "graphcodebert", "val_loss": 0.12, "f1": 0.88, "auroc": 0.94},
+# ]
+results = [
+    # 在此处添加数据
+    # 示例：{"embedding_type": "codebert", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+]
+# ==============================================
 
-if not myrq1_dirs:
-    print("未找到myrq1实验目录，退出程序")
+# 检查是否有数据
+if not results:
+    print("未填写任何数据，退出程序")
     exit(1)
 
-myrq1_dir = myrq1_dirs[0]
-print(f"使用myrq1实验目录: {myrq1_dir}")
-
-# 存储实验结果
-results = []
-
-# 查找所有试验目录（递归查找包含embtype的目录）
-print(f"\n查找 {myrq1_dir} 下的所有试验目录...")
-trial_dirs = []
-for root, dirs, files in os.walk(myrq1_dir):
-    for d in dirs:
-        if 'embtype=' in d:
-            trial_dirs.append(os.path.join(root, d))
-print(f"找到 {len(trial_dirs)} 个试验目录:")
-for i, d in enumerate(trial_dirs):
-    print(f"  {i+1}. {d}")
-
-for trial_dir in trial_dirs:
-    print(f"\n处理试验目录: {os.path.basename(trial_dir)}")
-    if not os.path.isdir(trial_dir):
-        print(f"  不是目录，跳过")
-        continue
-    
-    # 读取配置文件
-    config_file = os.path.join(trial_dir, "params.json")
-    if not os.path.exists(config_file):
-        print(f"  未找到params.json文件，跳过")
-        continue
-    
-    print(f"  找到params.json文件")
-    with open(config_file, 'r') as f:
-        config = json.load(f)
-    
-    # 提取嵌入类型
-    embtype = config.get("embtype", "")
-    print(f"  嵌入类型: '{embtype}'")
-    if embtype not in ["codebert", "graphcodebert"]:
-        print(f"  嵌入类型不在预期列表中，跳过")
-        continue
-    
-    print(f"处理 {embtype} 试验...")
-    
-    # 打印调试信息
-    print(f"  试验目录: {trial_dir}")
-    parent_dir = os.path.dirname(trial_dir)
-    print(f"  父目录: {parent_dir}")
-    grandparent_dir = os.path.dirname(parent_dir)
-    print(f"  祖父目录: {grandparent_dir}")
-    great_grandparent_dir = os.path.dirname(grandparent_dir)
-    print(f"  曾祖父目录: {great_grandparent_dir}")
-    
-    # 检查祖父目录的内容（这是csv_logs和checkpoints所在的目录）
-    print(f"\n  祖父目录内容:")
-    if os.path.exists(grandparent_dir):
-        for item in os.listdir(grandparent_dir):
-            item_path = os.path.join(grandparent_dir, item)
-            if os.path.isdir(item_path):
-                print(f"    目录: {item}")
-            else:
-                print(f"    文件: {item}")
-    
-    # 检查csv_logs目录的内容
-    csv_logs_dir = os.path.join(grandparent_dir, "csv_logs")
-    print(f"\n  csv_logs目录内容:")
-    if os.path.exists(csv_logs_dir):
-        for item in os.listdir(csv_logs_dir):
-            item_path = os.path.join(csv_logs_dir, item)
-            if os.path.isdir(item_path):
-                print(f"    目录: {item}")
-                # 检查子目录的内容
-                for subitem in os.listdir(item_path):
-                    subitem_path = os.path.join(item_path, subitem)
-                    print(f"      - {subitem}")
-            else:
-                print(f"    文件: {item}")
-    else:
-        print(f"    csv_logs目录不存在")
-    
-    # 查找训练日志（在多个目录中查找）
-    csv_files = []
-    # 直接检查csv_logs目录及其子目录（如version_0、version_1）
-    if os.path.exists(csv_logs_dir):
-        # 查找csv_logs目录下的所有CSV文件
-        csv_files.extend(glob.glob(f"{csv_logs_dir}/**/*.csv", recursive=True))
-    
-    print(f"\n  找到 {len(csv_files)} 个CSV文件")
-    for i, f in enumerate(csv_files):
-        print(f"    {i+1}. {f}")
-    
-    if not csv_files:
-        print(f"  未找到训练日志，跳过")
-        continue
-    
-    # 为当前嵌入类型选择正确的CSV文件
-    # codebert对应version_0，graphcodebert对应version_1
-    selected_csv = None
-    for csv_file in csv_files:
-        if embtype == "codebert" and "version_0" in csv_file:
-            selected_csv = csv_file
-            break
-        elif embtype == "graphcodebert" and "version_1" in csv_file:
-            selected_csv = csv_file
-            break
-    
-    if not selected_csv:
-        # 如果没有找到对应版本的CSV文件，使用第一个文件
-        selected_csv = csv_files[0]
-    
-    print(f"  找到训练日志: {selected_csv}")
-    
-    # 读取训练日志
-    df = pd.read_csv(selected_csv)
-    
-    # 打印CSV文件的列名，以便了解文件结构
-    print(f"  CSV文件列名: {list(df.columns)}")
-    
-    # 打印CSV文件的前几行，以便了解数据结构
-    print(f"  CSV文件前5行:")
-    print(df.head())
-    
-    # 提取最佳验证损失
-    best_val_loss = None
-    if 'val_loss_epoch' in df.columns:
-        # 过滤掉NaN值，然后取最小值
-        valid_losses = df['val_loss_epoch'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    elif 'val_loss' in df.columns:
-        valid_losses = df['val_loss'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    elif 'valid_loss' in df.columns:
-        valid_losses = df['valid_loss'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    elif 'validation_loss' in df.columns:
-        valid_losses = df['validation_loss'].dropna()
-        if not valid_losses.empty:
-            best_val_loss = valid_losses.min()
-    
-    # 尝试从CSV文件中提取F1值和AUROC（如果有）
-    f1 = None
-    auroc = None
-    
-    # 查找AUROC值
-    if 'val_auroc' in df.columns:
-        valid_aurocs = df['val_auroc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    elif 'auroc' in df.columns:
-        valid_aurocs = df['auroc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    elif 'test_auroc' in df.columns:
-        valid_aurocs = df['test_auroc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    elif 'roc_auc' in df.columns:
-        valid_aurocs = df['roc_auc'].dropna()
-        if not valid_aurocs.empty:
-            auroc = valid_aurocs.max()
-    
-    # 查找准确率作为参考（CSV文件中没有直接的F1值）
-    accuracy = None
-    if 'val_acc' in df.columns:
-        valid_accs = df['val_acc'].dropna()
-        if not valid_accs.empty:
-            accuracy = valid_accs.max()
-    
-    # 查找模型检查点文件
-    print(f"\n  查找模型检查点文件...")
-    checkpoint_files = []
-    # 检查祖父目录下的所有.ckpt和.pth文件
-    if os.path.exists(grandparent_dir):
-        checkpoint_files.extend(glob.glob(f"{grandparent_dir}/**/*.ckpt", recursive=True))
-        checkpoint_files.extend(glob.glob(f"{grandparent_dir}/**/*.pth", recursive=True))
-    
-    print(f"  找到 {len(checkpoint_files)} 个检查点文件")
-    for i, f in enumerate(checkpoint_files):
-        print(f"    {i+1}. {f}")
-    
-    # 尝试加载模型检查点并计算F1值
-    if checkpoint_files:
-        # 选择第一个检查点文件
-        checkpoint_file = checkpoint_files[0]
-        print(f"  使用检查点文件: {checkpoint_file}")
-        
-        try:
-            # 加载模型
-            print("  加载模型...")
-            # 创建模型实例
-            model = lvd.LitGNN(
-                hfeat=config.get("hfeat", 128),
-                embtype=embtype,
-                methodlevel=False,
-                nsampling=config.get("nsampling", False),
-                model=config.get("modeltype", "gat"),
-                loss=config.get("loss", "focal"),
-                hdropout=config.get("hdropout", 0.5),
-                gatdropout=config.get("gatdropout", 0.5),
-                num_heads=4,
-                multitask=config.get("multitask", "line"),
-                stmtweight=config.get("stmtweight", 1.0),
-                gnntype=config.get("gnntype", "gat"),
-                scea=config.get("scea", False),
-                lr=config.get("lr", 0.001),
-                mlp_layers=config.get("mlp_layers", 2),
-                use_bn=config.get("use_bn", False),
-                gamma=config.get("gamma", 2.0),
-                use_multichannel=config.get("use_multichannel", False),
-                num_edge_types=config.get("num_edge_types", 7),
-            )
-            
-            # 加载检查点
-            model.load_state_dict(torch.load(checkpoint_file, map_location=torch.device('cpu'))['state_dict'])
-            model.eval()
-            print("  模型加载成功")
-            
-            # 加载测试数据集
-            print("  加载测试数据集...")
-            data = lvd.BigVulDatasetLineVDDataModule(
-                batch_size=config.get("batch_size", 32),
-                sample=-1,
-                methodlevel=False,
-                nsampling=config.get("nsampling", False),
-                nsampling_hops=2,
-                gtype=config.get("gtype", "pdg"),
-                splits=config.get("splits", "default"),
-                feat=embtype,
-                use_multichannel=config.get("use_multichannel", False),
-            )
-            data.setup()
-            test_loader = data.test_dataloader()
-            print("  测试数据集加载成功")
-            
-            # 计算F1值
-            print("  计算F1值...")
-            all_preds = []
-            all_labels = []
-            
-            with torch.no_grad():
-                for batch in test_loader:
-                    # 处理批次数据
-                    batch_data = batch
-                    if isinstance(batch, list) and len(batch) == 2:
-                        batch_data = batch[0]
-                    
-                    # 前向传播
-                    output = model(batch_data)
-                    
-                    # 获取预测结果和标签
-                    if isinstance(output, tuple):
-                        logits = output[0]
-                    else:
-                        logits = output
-                    
-                    # 计算预测类别
-                    preds = torch.argmax(logits, dim=1)
-                    labels = batch_data.y
-                    
-                    # 收集预测结果和标签
-                    all_preds.extend(preds.cpu().numpy())
-                    all_labels.extend(labels.cpu().numpy())
-            
-            # 计算F1值
-            if all_labels and all_preds:
-                f1 = f1_score(all_labels, all_preds, average='weighted')
-                print(f"  F1值计算成功: {f1:.4f}")
-            else:
-                print("  无法计算F1值: 没有有效的预测结果和标签")
-                
-        except Exception as e:
-            print(f"  加载模型或计算F1值时出错: {str(e)}")
-    else:
-        print("  未找到模型检查点文件，跳过计算F1值")
-    
-    # 打印结果
-    print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
-    print(f"  AUROC: {auroc:.4f}" if auroc is not None else "  AUROC: 未找到")
-    print(f"  F1值: {f1:.4f}" if f1 is not None else "  F1值: 未找到")
-    print(f"  准确率: {accuracy:.4f}" if accuracy is not None else "  准确率: 未找到")
-    
-    # 存储结果
-    result = {
-        "embedding_type": embtype,
-        "val_loss": best_val_loss,
-        "f1": f1,
-        "auroc": auroc
-    }
-    
-    results.append(result)
-    print(f"✓ 成功导出 {embtype} 的结果")
-
 # 导出结果
-if results:
-    results_df = pd.DataFrame(results)
-    output_file = os.path.join(output_dir, "myrq1_results.csv")
-    results_df.to_csv(output_file, index=False)
-    print(f"\n✓ 实验结果已导出到 {output_file}")
-    
-    # 打印结果
-    print("\nmyrq1实验结果:")
-    print(results_df)
-    
-    # 生成对比图
-    print("\n生成对比图...")
-    
-    # 检查是否有有效的指标值
-    has_valid_data = False
-    for col in ['f1', 'auroc', 'val_loss']:
-        if results_df[col].notna().any():
-            has_valid_data = True
-            break
-    
-    if has_valid_data:
-        # 设置中文字体
-        plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-        
-        # 指标对比图
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-        
-        # F1值对比
-        if 'f1' in results_df.columns and results_df['f1'].notna().any():
-            axes[0].bar(results_df['embedding_type'], results_df['f1'])
-            axes[0].set_title('F1值对比')
-            axes[0].set_ylabel('F1值')
-            axes[0].set_ylim(0, 1)
-        else:
-            axes[0].set_title('F1值对比')
-            axes[0].set_ylabel('F1值')
-            axes[0].set_ylim(0, 1)
-            axes[0].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[0].transAxes)
-        
-        # AUROC对比
-        if 'auroc' in results_df.columns and results_df['auroc'].notna().any():
-            axes[1].bar(results_df['embedding_type'], results_df['auroc'])
-            axes[1].set_title('AUROC对比')
-            axes[1].set_ylabel('AUROC值')
-            axes[1].set_ylim(0, 1)
-        else:
-            axes[1].set_title('AUROC对比')
-            axes[1].set_ylabel('AUROC值')
-            axes[1].set_ylim(0, 1)
-            axes[1].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[1].transAxes)
-        
-        # 验证损失对比
-        if 'val_loss' in results_df.columns and results_df['val_loss'].notna().any():
-            axes[2].bar(results_df['embedding_type'], results_df['val_loss'])
-            axes[2].set_title('验证损失对比')
-            axes[2].set_ylabel('验证损失')
-        else:
-            axes[2].set_title('验证损失对比')
-            axes[2].set_ylabel('验证损失')
-            axes[2].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[2].transAxes)
-        
-        plt.tight_layout()
-        
-        # 保存图表
-        plot_file = os.path.join(output_dir, "myrq1_embedding_comparison.png")
-        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
-        print(f"✓ 对比图已保存到 {plot_file}")
-        
-        # 显示图表
-        plt.show()
-    else:
-        print("未找到有效的指标数据，跳过生成对比图")
+results_df = pd.DataFrame(results)
+output_file = os.path.join(output_dir, "myrq1_results.csv")
+results_df.to_csv(output_file, index=False)
+print(f"\n✓ 实验结果已导出到 {output_file}")
+
+# 打印结果
+print("\nmyrq1实验结果:")
+print(results_df)
+
+# 生成对比图
+print("\n生成对比图...")
+
+# 设置中文字体
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+
+# 指标对比图
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+# F1值对比
+if 'f1' in results_df.columns and results_df['f1'].notna().any():
+    axes[0].bar(results_df['embedding_type'], results_df['f1'])
+    axes[0].set_title('F1值对比')
+    axes[0].set_ylabel('F1值')
+    axes[0].set_ylim(0, 1)
 else:
-    print("\n未找到任何实验结果")
+    axes[0].set_title('F1值对比')
+    axes[0].set_ylabel('F1值')
+    axes[0].set_ylim(0, 1)
+    axes[0].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[0].transAxes)
+
+# AUROC对比
+if 'auroc' in results_df.columns and results_df['auroc'].notna().any():
+    axes[1].bar(results_df['embedding_type'], results_df['auroc'])
+    axes[1].set_title('AUROC对比')
+    axes[1].set_ylabel('AUROC值')
+    axes[1].set_ylim(0, 1)
+else:
+    axes[1].set_title('AUROC对比')
+    axes[1].set_ylabel('AUROC值')
+    axes[1].set_ylim(0, 1)
+    axes[1].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[1].transAxes)
+
+# 验证损失对比
+if 'val_loss' in results_df.columns and results_df['val_loss'].notna().any():
+    axes[2].bar(results_df['embedding_type'], results_df['val_loss'])
+    axes[2].set_title('验证损失对比')
+    axes[2].set_ylabel('验证损失')
+else:
+    axes[2].set_title('验证损失对比')
+    axes[2].set_ylabel('验证损失')
+    axes[2].text(0.5, 0.5, '无数据', ha='center', va='center', transform=axes[2].transAxes)
+
+plt.tight_layout()
+
+# 保存图表
+plot_file = os.path.join(output_dir, "myrq1_embedding_comparison.png")
+plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+print(f"✓ 对比图已保存到 {plot_file}")
+
+# 显示图表
+plt.show()
 
 print(f"\n导出完成！所有文件已保存到: {output_dir}")

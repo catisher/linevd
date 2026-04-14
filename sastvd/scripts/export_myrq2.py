@@ -3,198 +3,38 @@
 导出LineVD项目中myrq2实验的训练数据
 专门用于导出有无残差连接的对比数据
 包括验证损失、AUROC、F1值等指标，并生成对比图
+用户可以直接在代码中填写数据
 """
 
 import os
-import glob
-import json
 import pandas as pd
-import torch
-import sastvd as svd
-import sastvd.linevd as lvd
-from sklearn.metrics import f1_score, roc_auc_score
 import matplotlib.pyplot as plt
 
-print("开始导出myrq2实验数据...")
+print("开始生成有无残差连接的对比图...")
 
 # 设置输出目录为storage/outputs/myrq2_results
-output_dir = str(svd.outputs_dir() / "myrq2_results")
+output_dir = "storage/outputs/myrq2_results"
 os.makedirs(output_dir, exist_ok=True)
 print(f"输出目录: {output_dir}")
 
-# 查找myrq2实验目录
-print(f"在 {str(svd.processed_dir())} 中查找myrq2实验目录...")
-myrq2_dirs = glob.glob(str(svd.processed_dir() / "raytune_myrq2_*"))
-print(f"找到 {len(myrq2_dirs)} 个myrq2实验目录:")
-for i, d in enumerate(myrq2_dirs):
-    print(f"  {i+1}. {d}")
+# ==============================================
+# 在这里填写有无残差连接的性能数据
+# 格式：{"residual": "有无残差连接", "modeltype": "模型类型", "val_loss": 验证损失, "f1": F1值, "auroc": AUROC值}
+# 示例：
+# results = [
+#     {"residual": "无残差连接", "modeltype": "gat", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+#     {"residual": "有残差连接", "modeltype": "gat_residual", "val_loss": 0.12, "f1": 0.88, "auroc": 0.94},
+# ]
+results = [
+    # 在此处添加数据
+    # 示例：{"residual": "无残差连接", "modeltype": "gat", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+]
+# ==============================================
 
-if not myrq2_dirs:
-    print("未找到myrq2实验目录，退出程序")
+# 检查是否有数据
+if not results:
+    print("未填写任何数据，退出程序")
     exit(1)
-
-myrq2_dir = myrq2_dirs[0]
-print(f"使用myrq2实验目录: {myrq2_dir}")
-
-# 存储实验结果
-results = []
-
-# 查找所有试验目录（递归查找包含modeltype的目录）
-print(f"\n查找 {myrq2_dir} 下的所有试验目录...")
-trial_dirs = []
-for root, dirs, files in os.walk(myrq2_dir):
-    for d in dirs:
-        if 'modeltype=' in d:
-            trial_dirs.append(os.path.join(root, d))
-print(f"找到 {len(trial_dirs)} 个试验目录:")
-for i, d in enumerate(trial_dirs):
-    print(f"  {i+1}. {d}")
-
-for trial_dir in trial_dirs:
-    print(f"\n处理试验目录: {os.path.basename(trial_dir)}")
-    if not os.path.isdir(trial_dir):
-        print(f"  不是目录，跳过")
-        continue
-    
-    # 读取配置文件
-    config_file = os.path.join(trial_dir, "params.json")
-    if not os.path.exists(config_file):
-        print(f"  未找到params.json文件，跳过")
-        continue
-    
-    print(f"  找到params.json文件")
-    with open(config_file, 'r') as f:
-        config = json.load(f)
-    
-    # 提取模型类型
-    modeltype = config.get("modeltype", "")
-    print(f"  模型类型: '{modeltype}'")
-    
-    # 确定是否有残差连接
-    if "residual" in modeltype.lower():
-        residual = "有残差连接"
-    else:
-        residual = "无残差连接"
-    print(f"  残差连接: {residual}")
-    
-    # 查找检查点文件
-    checkpoint_files = glob.glob(os.path.join(trial_dir, "checkpoints", "*.ckpt"))
-    if not checkpoint_files:
-        print(f"  未找到检查点文件，跳过")
-        continue
-    
-    print(f"  找到检查点: {checkpoint_files[0]}")
-    checkpoint_path = checkpoint_files[0]
-    
-    # 查找CSV日志文件
-    parent_dir = os.path.dirname(trial_dir)
-    grandparent_dir = os.path.dirname(parent_dir)
-    csv_logs_dir = os.path.join(grandparent_dir, "csv_logs")
-    
-    csv_files = []
-    if os.path.exists(csv_logs_dir):
-        csv_files.extend(glob.glob(f"{csv_logs_dir}/**/*.csv", recursive=True))
-    
-    # 提取验证损失
-    best_val_loss = None
-    csv_f1 = None
-    csv_auroc = None
-    
-    if csv_files:
-        selected_csv = csv_files[0] if csv_files else None
-        if selected_csv:
-            df = pd.read_csv(selected_csv)
-            print(f"  CSV文件列名: {list(df.columns)}")
-            
-            # 提取验证损失
-            if 'val_loss_epoch' in df.columns:
-                valid_losses = df['val_loss_epoch'].dropna()
-                if not valid_losses.empty:
-                    best_val_loss = valid_losses.min()
-            elif 'val_loss' in df.columns:
-                valid_losses = df['val_loss'].dropna()
-                if not valid_losses.empty:
-                    best_val_loss = valid_losses.min()
-            
-            # 尝试从CSV中提取F1和AUROC
-            if 'val_f1' in df.columns:
-                valid_f1s = df['val_f1'].dropna()
-                if not valid_f1s.empty:
-                    csv_f1 = valid_f1s.max()
-            
-            if 'val_auroc' in df.columns:
-                valid_aurocs = df['val_auroc'].dropna()
-                if not valid_aurocs.empty:
-                    csv_auroc = valid_aurocs.max()
-            elif 'auroc' in df.columns:
-                valid_aurocs = df['auroc'].dropna()
-                if not valid_aurocs.empty:
-                    csv_auroc = valid_aurocs.max()
-    
-    # 如果CSV中没有F1和AUROC，则加载模型计算
-    if csv_f1 is None or csv_auroc is None:
-        print(f"  CSV中缺少F1或AUROC数据，加载模型计算...")
-        try:
-            # 加载模型
-            model = lvd.LitGNN.load_from_checkpoint(checkpoint_path)
-            model.eval()
-            
-            # 加载测试数据
-            data_module = lvd.BigVulDatasetLineVDDataModule(
-                batch_size=256,
-                sample=-1,
-                methodlevel=False,
-                nsampling=False,
-                gtype=config.get("gtype", "pdg+raw"),
-                splits=config.get("splits", "default"),
-                feat=config.get("embtype", "graphcodebert")
-            )
-            data_module.setup()
-            test_loader = data_module.test_dataloader()
-            
-            # 收集预测结果
-            predictions = []
-            labels = []
-            probabilities = []
-            
-            with torch.no_grad():
-                for batch in test_loader:
-                    logits = model(batch)
-                    prob = torch.softmax(logits, dim=1)
-                    pred = torch.argmax(prob, dim=1)
-                    lbl = batch.ndata["_VULN"]
-                    
-                    predictions.extend(pred.cpu().numpy())
-                    labels.extend(lbl.cpu().numpy())
-                    probabilities.extend(prob[:, 1].cpu().numpy())
-            
-            # 计算F1值和AUROC
-            if csv_f1 is None:
-                csv_f1 = f1_score(labels, predictions)
-            if csv_auroc is None:
-                csv_auroc = roc_auc_score(labels, probabilities)
-            
-            print(f"  计算得到 F1值: {csv_f1:.4f}")
-            print(f"  计算得到 AUROC: {csv_auroc:.4f}")
-            
-        except Exception as e:
-            print(f"  加载模型计算失败: {e}")
-    
-    print(f"  验证损失: {best_val_loss:.4f}" if best_val_loss is not None else "  验证损失: 未找到")
-    print(f"  F1值: {csv_f1:.4f}" if csv_f1 is not None else "  F1值: 未找到")
-    print(f"  AUROC: {csv_auroc:.4f}" if csv_auroc is not None else "  AUROC: 未找到")
-    
-    # 存储结果
-    result = {
-        "residual": residual,
-        "modeltype": modeltype,
-        "val_loss": best_val_loss,
-        "f1": csv_f1,
-        "auroc": csv_auroc
-    }
-    
-    results.append(result)
-    print(f"✓ 成功导出 {residual} 的结果")
 
 # 导出结果
 if results:

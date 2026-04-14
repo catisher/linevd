@@ -115,6 +115,11 @@ python sastvd/scripts/test.py
  
 scp D:\repositories\codebert-base.zip wmy@10.2.0.11:/home/wmy/linevd/storage/external/
 
+scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_results/myrq1_results.csv .
+scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq2_results/myrq2_results.csv .
+scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_results/myrq1_embedding_comparison.png .
+
+
 nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
 
 tail -f train.log

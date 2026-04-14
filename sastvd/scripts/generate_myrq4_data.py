@@ -36,9 +36,9 @@ def calc_f1(tp, fp, fn):
 # ]
 checkpoint_paths = [
     # 在此处添加数据
-    {"loss_type": "ce", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq4_-1/202604090017_2f49f45_规范实验/tune_linevd_myrq4/train_linevd_6e233_00000_0_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-17-25/checkpoint_000099"},
-    {"loss_type": "sce", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq4_-1/202604090017_2f49f45_规范实验/tune_linevd_myrq4/train_linevd_6e233_00001_1_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-17-25/checkpoint_000099"},
-    {"loss_type": "focal", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq4_-1/202604090017_2f49f45_规范实验/tune_linevd_myrq4/train_linevd_6e233_00002_2_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-17-25/checkpoint_000099"},
+    {"loss_type": "ce", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq4_-1/202604090017_2f49f45_规范实验/tune_linevd_myrq4/train_linevd_6e233_00000_0_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-17-25/checkpoint_000049"},
+    #{"loss_type": "sce", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq4_-1/202604090017_2f49f45_规范实验/tune_linevd_myrq4/train_linevd_6e233_00001_1_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-17-25/checkpoint_000099"},
+    {"loss_type": "focal", "checkpoint_path": "/home/wmy/linevd/storage/processed/raytune_myrq4_-1/202604090017_2f49f45_规范实验/tune_linevd_myrq4/train_linevd_6e233_00002_2_batch_size=256,embtype=graphcodebert,gamma=2,gatdropout=0.2000,gnntype=gatv2,gtype=pdg_raw,hdropout=0.3_2026-04-09_00-17-25/checkpoint_000049"},
 ]
 # ==============================================
 

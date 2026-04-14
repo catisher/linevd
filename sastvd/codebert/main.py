@@ -246,11 +246,11 @@ class LitCodebert(pl.LightningModule):
         # 第二全连接层：将 256 维特征映射到 2 维（二分类）
         self.fc2 = torch.nn.Linear(256, 2)
         # 准确率指标
-        self.accuracy = torchmetrics.Accuracy()
+        self.accuracy = torchmetrics.Accuracy(task="binary")
         # AUC-ROC 指标（在 epoch 结束时计算）
-        self.auroc = torchmetrics.AUROC(compute_on_step=False)
+        self.auroc = torchmetrics.AUROC(task="binary", compute_on_step=False)
         # Matthews 相关系数指标（适用于不平衡数据集）
-        self.mcc = torchmetrics.MatthewsCorrcoef(2)
+        self.mcc = torchmetrics.MatthewsCorrcoef(task="binary")
 
     def forward(self, ids, mask):
         """前向传播

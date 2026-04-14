@@ -69,7 +69,29 @@ for emb_dir in emb_type_dirs:
     checkpoint_files = []
     # 递归查找所有可能的检查点文件
     print(f"在 {emb_dir} 中搜索检查点文件...")
+    
+    # 首先检查目录是否存在
+    if not os.path.exists(emb_dir):
+        print(f"错误: 目录不存在: {emb_dir}")
+        exit(1)
+    
+    # 列出目录中的所有文件，用于调试
+    print("目录中的文件:")
+    try:
+        for item in os.listdir(emb_dir):
+            item_path = os.path.join(emb_dir, item)
+            if os.path.isfile(item_path):
+                print(f"  文件: {item}")
+            else:
+                print(f"  目录: {item}")
+    except Exception as e:
+        print(f"读取目录时出错: {e}")
+    
+    # 递归搜索检查点文件
     for root, dirs, files in os.walk(emb_dir):
+        print(f"搜索目录: {root}")
+        print(f"  子目录: {dirs}")
+        print(f"  文件: {files}")
         for file in files:
             # 检查常见的检查点文件扩展名或无扩展名的检查点文件
             if any(file.endswith(ext) for ext in [".ckpt", ".pt", ".pth"]) or file.startswith("checkpoint_"):

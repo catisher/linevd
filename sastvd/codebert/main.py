@@ -250,7 +250,7 @@ class LitCodebert(pl.LightningModule):
         # AUC-ROC 指标（在 epoch 结束时计算）
         self.auroc = torchmetrics.AUROC(task="binary")
         # Matthews 相关系数指标（适用于不平衡数据集）
-        self.mcc = torchmetrics.MatthewsCorrcoef(task="binary")
+        self.mcc = torchmetrics.MatthewsCorrCoef(task="binary")
 
     def forward(self, ids, mask):
         """前向传播

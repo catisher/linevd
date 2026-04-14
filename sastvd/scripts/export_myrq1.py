@@ -49,8 +49,8 @@ print(f"输出目录: {output_dir}")
 # ╰─────────────────────────────────────────────────────────────╯
 results = [
     # 在此处添加数据
-    {"embedding_type": "codebert", "val_loss": 0.20043, "f1": 0.09, "auroc": 0.63781},
-    {"embedding_type": "graphcodebert", "val_loss": 0.23307, "f1": 0.14, "auroc": 0.71416},
+    {"embedding_type": "codebert", "val_loss": 0.20043, "f1": 0.0983, "auroc": 0.63781},
+    {"embedding_type": "graphcodebert", "val_loss": 0.23307, "f1": 0.1487, "auroc": 0.71416},
 ]
 # ==============================================
 

@@ -27,7 +27,7 @@ print(f"输出目录: {output_dir}")
 # ]
 results = [
     # 在此处添加数据
-    # 示例：{"baseline_name": "baseline1", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
+    {"baseline_name": "baseline1", "val_loss": 0.15, "f1": 0.85, "auroc": 0.92},
 ]
 # ==============================================
 

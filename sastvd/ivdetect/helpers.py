@@ -538,18 +538,16 @@ class IVDetect(nn.Module):
         feat_vec = self.connect(feat_vec)
 
         g.ndata["h"] = self.gcn(g, feat_vec)
-        # 使用 DGL 内置的全局平均池化函数
-        from dgl.nn import global_mean_pool
-        # 为每个图创建一个批次索引
+        # 手动实现全局平均池化
         batch_size = g.batch_size
-        batch_indices = torch.zeros(g.number_of_nodes(), dtype=torch.long, device=self.dev)
+        batch_pooled = torch.zeros((batch_size, 2), device=self.dev)
         start = 0
         for i in range(batch_size):
             num_nodes = g.batch_num_nodes()[i]
-            batch_indices[start:start+num_nodes] = i
+            if num_nodes > 0:
+                # 计算当前图的节点特征平均值
+                batch_pooled[i] = torch.mean(g.ndata["h"][start:start+num_nodes], dim=0)
             start += num_nodes
-        # 执行全局平均池化
-        batch_pooled = global_mean_pool(g.ndata["h"], batch_indices)
         return batch_pooled
 
 

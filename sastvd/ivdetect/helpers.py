@@ -418,8 +418,8 @@ class IVDetect(nn.Module):
             hidden_size, hidden_size, bidirectional=True, batch_first=True
         )
         # 设备选择
-        self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+        #self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.dev = torch.device("cpu")
         # TreeLSTM用于处理AST结构
         self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0)
         # GCN用于图表示学习

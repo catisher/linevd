@@ -508,8 +508,7 @@ class IVDetect(nn.Module):
             torch.Tensor(feat["f1_lens"]).long(),
         )
         # 确保 asts 在正确的设备上
-        for i in range(len(asts)):
-            asts[i] = asts[i].to(self.dev)
+        asts = asts.to(self.dev)
         F2 = self.treelstm(asts)
         F3, _ = self.gru2(
             pad_sequence(feat["f3"], batch_first=True).to(self.dev),

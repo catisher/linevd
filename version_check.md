@@ -179,3 +179,8 @@ python sastvd/scripts/export_myrq3.py
 
 # 导出RQ4: 损失函数对比
 python sastvd/scripts/export_myrq4.py
+
+python sastvd/scripts/generate_myrq1_data.py
+python sastvd/scripts/generate_myrq2_data.py
+python sastvd/scripts/generate_myrq3_data.py
+python sastvd/scripts/generate_myrq4_data.py

@@ -489,14 +489,17 @@ class IVDetect(nn.Module):
         asts = dgl.batch(asts).to(self.dev)
 
         feat = defaultdict(list)
+        import numpy as np
         for n in nodes:
-            f1 = torch.Tensor(data[n]["subseq"])
+            # 先将列表转换为 numpy 数组，再转换为张量，提高性能
+            f1 = torch.Tensor(np.array(data[n]["subseq"]))
             f1 = f1 if f1.shape[0] > 0 else torch.zeros(1, 200)
             f1_lens = len(f1)
             feat["f1"].append(f1)
             feat["f1_lens"].append(f1_lens)
 
-            f3 = torch.Tensor(data[n]["nametypes"])
+            # 先将列表转换为 numpy 数组，再转换为张量，提高性能
+            f3 = torch.Tensor(np.array(data[n]["nametypes"]))
             f3 = f3 if f3.shape[0] > 0 else torch.zeros(1, 200)
             f3_lens = len(f3)
             feat["f3"].append(f3)

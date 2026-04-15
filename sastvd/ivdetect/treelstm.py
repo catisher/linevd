@@ -125,6 +125,7 @@ class TreeLSTM(nn.Module):
         x_size,
         h_size,
         dropout=0,
+        dev=th.device("cpu"),
     ):
         """初始化TreeLSTM模型。
 
@@ -136,13 +137,15 @@ class TreeLSTM(nn.Module):
             隐藏状态的维度大小
         dropout : float, 可选
             Dropout概率，应用于最终层，默认为0
+        dev : torch.device, 可选
+            计算设备，默认为CPU
         """
         super(TreeLSTM, self).__init__()
         self.x_size = x_size
         self.dropout = nn.Dropout(dropout)
         self.cell = ChildSumTreeLSTMCell(x_size, h_size)
         self.h_size = h_size
-        self.dev = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.dev = dev
 
     def forward(self, g):
         """给定批次树结构，计算Tree-LSTM的预测结果。

@@ -105,7 +105,7 @@ def feature_extraction(filepath):
     # 删除local_type列
     subseq = subseq.drop(columns="local_type")
     # 过滤空字符串行
-    subseq = subseq[~subseq.eq("").any(1)]
+    subseq = subseq[~subseq.eq("").any(axis=1)]
     # 过滤只有空格的行
     subseq = subseq[subseq.code != " "]
     # 将lineNumber转换为整数
@@ -262,7 +262,7 @@ def feature_extraction(filepath):
     # 如果有边
     if len(uedge) > 0:
         # 透视表，行是入节点，列是边类型
-        uedge = uedge.pivot("innode", "etype", "outnode")
+        uedge = uedge.pivot(index="innode", columns="etype", values="outnode")
         # 添加缺失的DDG列
         if "DDG" not in uedge.columns:
             uedge["DDG"] = None
@@ -427,7 +427,7 @@ class IVDetect(nn.Module):
         #self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.dev = torch.device("cpu")
         # TreeLSTM用于处理AST结构
-        self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0)
+        self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0, dev=self.dev)
         # GCN用于图表示学习
         self.gcn = GraphConv(hidden_size, 2)
         # 全连接层用于特征连接
@@ -507,6 +507,9 @@ class IVDetect(nn.Module):
             pad_sequence(feat["f1"], batch_first=True).to(self.dev),
             torch.Tensor(feat["f1_lens"]).long(),
         )
+        # 确保 asts 在正确的设备上
+        for i in range(len(asts)):
+            asts[i] = asts[i].to(self.dev)
         F2 = self.treelstm(asts)
         F3, _ = self.gru2(
             pad_sequence(feat["f3"], batch_first=True).to(self.dev),

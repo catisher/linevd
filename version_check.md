@@ -115,6 +115,10 @@ tail -f graphcodebert.log
 python tests/try.py
 python tests/check_distribution.py
 
+## IVDetect 实验
+nohup python sastvd/ivdetect/main.py > ivdetect.log 2>&1 &
+tail -f ivdetect.log
+
 python sastvd/ivdetect/main.py
 
 python sastvd/scripts/run_method.py

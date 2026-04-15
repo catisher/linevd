@@ -33,6 +33,9 @@ miniconda.sh
 **/*.log
 logs/
 **/logs/
+# CSV文件
+*.csv
+**/*.csv
 #前端相关
 linevd-ui/frontend/node_modules
 linevd-ui/frontend/dist

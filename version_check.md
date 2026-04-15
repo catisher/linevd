@@ -132,6 +132,8 @@ scp wmy@10.2.0.11:~/linevd/myrq2.log .
 scp wmy@10.2.0.11:~/linevd/myrq3.log .
 scp wmy@10.2.0.11:~/linevd/myrq4.log .
 
+scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_empirical_results/myrq1_graphcodebert_metrics.csv .
+
 
 
 nohup python sastvd/scripts/train_best.py > train.log 2>&1 &

@@ -11,8 +11,13 @@ import torch.nn.functional as F
 import sastvd as svd
 import sastvd.helpers.ml as ml
 from tqdm import tqdm
-from main import LitCodebert, BigVulDatasetNLPDataModule, BigVulDatasetNLP
+from main import LitCodebert, BigVulDatasetNLP
+from torch.utils.data import DataLoader
 import pandas as pd
+
+# 禁用所有警告
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def evaluate_model(checkpoint_path):
@@ -27,12 +32,13 @@ def evaluate_model(checkpoint_path):
     
     # 强制使用 CPU
     model.cpu()
+    model.eval()  # 设置为评估模式
     print("使用 CPU 进行评估")
 
-    # 准备测试数据
+    # 直接创建测试数据集，不使用 DataModule
     print("准备测试数据...")
-    data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
-    test_loader = data.test_dataloader()
+    test_dataset = BigVulDatasetNLP(partition="test")
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
     # 收集预测结果
     print("开始评估模型...")

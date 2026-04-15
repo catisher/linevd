@@ -366,24 +366,24 @@ class LitCodebert(pl.LightningModule):
         # 使用 AdamW 优化器，适用于 transformer 模型
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
 
-
-run_id = svd.get_run_id()
-savepath = svd.get_dir(svd.processed_dir() / "codebert" / run_id)
-model = LitCodebert()
-data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
-checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val_loss")
-trainer = pl.Trainer(
-    #gpus=1,
-    accelerator="cpu",
-    auto_lr_find=True,
-    default_root_dir=savepath,
-    num_sanity_val_steps=0,
-    callbacks=[checkpoint_callback],
-    max_epochs=3,
-)
-#tuned = trainer.tune(model, data)
-trainer.fit(model, data)
-trainer.test(model, data)
+if __name__ == "__main__":
+    run_id = svd.get_run_id()
+    savepath = svd.get_dir(svd.processed_dir() / "codebert" / run_id)
+    model = LitCodebert()
+    data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val_loss")
+    trainer = pl.Trainer(
+        #gpus=1,
+        accelerator="cpu",
+        auto_lr_find=True,
+        default_root_dir=savepath,
+        num_sanity_val_steps=0,
+        callbacks=[checkpoint_callback],
+        max_epochs=3,
+    )
+    #tuned = trainer.tune(model, data)
+    trainer.fit(model, data)
+    trainer.test(model, data)
 
 # import sastvd.helpers.ml as ml
 # from tqdm import tqdm

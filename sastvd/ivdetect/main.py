@@ -192,3 +192,36 @@ for sampleid, pred in pred_lines.items():
 
 # 打印平均MFR值，值越小表示模型性能越好
 print(sum(MFR) / len(MFR))
+
+# 保存评估结果为 CSV 文件
+import pandas as pd
+
+# 收集评估指标
+metrics = {
+    "test_metrics": test_mets,
+    "rank_metrics": svdr.rank_metr(all_pred, all_true),
+    "MFR": sum(MFR) / len(MFR) if MFR else 0
+}
+
+# 创建结果字典
+results = {}
+
+# 添加测试指标
+for key, value in test_mets.items():
+    results[f"test_{key}"] = [value]
+
+# 添加排名指标
+rank_metrics = svdr.rank_metr(all_pred, all_true)
+for key, value in rank_metrics.items():
+    results[key] = [value]
+
+# 添加 MFR
+results["MFR"] = [sum(MFR) / len(MFR) if MFR else 0]
+
+# 创建 DataFrame 并保存为 CSV
+df = pd.DataFrame(results)
+output_file = f"ivdetect_evaluation_results.csv"
+df.to_csv(output_file, index=False)
+print(f"评估结果已保存到: {output_file}")
+print("\n评估结果:")
+print(df)

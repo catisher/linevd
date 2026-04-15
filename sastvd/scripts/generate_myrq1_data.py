@@ -147,6 +147,33 @@ for item in checkpoint_paths:
     trainer = pl.Trainer(accelerator='cpu')  # 如果有GPU可以使用 'gpu'
     trainer.test(model, data)
     
+    # 使用 get_relevant_metrics 提取和输出指标
+    print("\n提取评估指标...")
+    res = [
+        emb_type,             # 试验ID（使用嵌入类型）
+        checkpoint_path,      # 检查点路径
+        model.res1vo,        # 排名指标1（仅正样本）
+        model.res2mt,        # 多任务指标
+        model.res2f,         # 方法级指标
+        model.res3vo,        # 排名指标3（仅正样本）
+        model.res2,          # 语句级指标
+        model.lr,            # 学习率
+    ]
+    
+    # 使用 get_relevant_metrics 提取指标
+    metrics = lvd.get_relevant_metrics(res)
+    
+    # 打印提取的指标
+    print("\n提取的评估指标:")
+    for key, value in metrics.items():
+        print(f"{key}: {value}")
+    
+    # 保存指标到文件
+    metrics_df = pd.DataFrame([metrics])
+    metrics_file = os.path.join(output_dir, f"myrq1_{emb_type}_metrics.csv")
+    metrics_df.to_csv(metrics_file, index=False)
+    print(f"\n指标已保存到: {metrics_file}")
+    
     # 使用 EmpEvalBigVul 进行实证评估
     print("\n进行实证评估...")
     eebv = EmpEvalBigVul(model.all_funcs, data.test)

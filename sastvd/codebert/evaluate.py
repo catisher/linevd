@@ -61,6 +61,8 @@ def evaluate_model(checkpoint_path):
 
     # 计算详细指标
     print("\n计算评估指标...")
+    # 转换 all_true 为 Long 类型
+    all_true = all_true.long()
     metrics = ml.get_metrics_logits(all_true, all_pred)
     
     # 输出到 CSV 文件

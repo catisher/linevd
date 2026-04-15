@@ -606,9 +606,10 @@ class BigVulDatasetIVDetect(svddc.BigVulDataset):
                 return None
             outnode, innode, ndata = row
             g = dgl.graph((outnode, innode))
-            g.ndata["_FEAT"] = torch.Tensor(
-                svdg.get_embeddings_list(ndata, self.emb_dict, 200)
-            )
+            # 先将嵌入列表转换为 numpy 数组，再转换为张量，提高性能
+            embeddings = svdg.get_embeddings_list(ndata, self.emb_dict, 200)
+            import numpy as np
+            g.ndata["_FEAT"] = torch.Tensor(np.array(embeddings))
             g.ndata["_ID"] = torch.Tensor([_id] * g.number_of_nodes())
             g.ndata["_LINE"] = torch.Tensor([lineid] * g.number_of_nodes())
             return g

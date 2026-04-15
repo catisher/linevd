@@ -31,7 +31,7 @@ def evaluate_model(checkpoint_path):
     # 收集预测结果
     print("开始评估模型...")
     # 检查是否有 GPU
-    if torch.cuda.is_available():
+    if False:
         model.cuda()
         all_pred = torch.empty((0, 2)).long().cuda()
         all_true = torch.empty((0)).long().cuda()
@@ -43,7 +43,7 @@ def evaluate_model(checkpoint_path):
 
     for batch in tqdm(test_loader):
         ids, att_mask, labels = batch
-        if torch.cuda.is_available():
+        if False:
             ids = ids.cuda()
             att_mask = att_mask.cuda()
             labels = labels.cuda()

@@ -52,4 +52,7 @@ linevd-ui/backend/venv
 linevd-ui/backend/env
 linevd-ui/backend/__pycache__
 linevd-ui/backend/*.pyc
+# 本地输出文件夹
+local_outputs/
+**/local_outputs/
 

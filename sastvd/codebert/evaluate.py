@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 CodeBERT 模型评估脚本
-使用被注释的代码逻辑进行评估
+完全按照 main.py 中被注释的代码逻辑实现
+使用 CPU 并输出 CSV 格式的评估结果
 """
 
 import torch
@@ -11,6 +12,7 @@ import sastvd as svd
 import sastvd.helpers.ml as ml
 from tqdm import tqdm
 from main import LitCodebert, BigVulDatasetNLPDataModule, BigVulDatasetNLP
+import pandas as pd
 
 
 def evaluate_model(checkpoint_path):
@@ -23,6 +25,10 @@ def evaluate_model(checkpoint_path):
     print(f"加载模型检查点: {checkpoint_path}")
     model = LitCodebert.load_from_checkpoint(checkpoint_path)
     
+    # 强制使用 CPU
+    model.cpu()
+    print("使用 CPU 进行评估")
+
     # 准备测试数据
     print("准备测试数据...")
     data = BigVulDatasetNLPDataModule(BigVulDatasetNLP, batch_size=64)
@@ -30,23 +36,16 @@ def evaluate_model(checkpoint_path):
 
     # 收集预测结果
     print("开始评估模型...")
-    # 检查是否有 GPU
-    if False:
-        model.cuda()
-        all_pred = torch.empty((0, 2)).long().cuda()
-        all_true = torch.empty((0)).long().cuda()
-        print("使用 GPU 进行评估")
-    else:
-        all_pred = torch.empty((0, 2)).long()
-        all_true = torch.empty((0)).long()
-        print("使用 CPU 进行评估")
+    # 按照被注释的代码逻辑初始化张量
+    all_pred = torch.empty((0, 2))
+    all_true = torch.empty((0))
 
     for batch in tqdm(test_loader):
         ids, att_mask, labels = batch
-        if False:
-            ids = ids.cuda()
-            att_mask = att_mask.cuda()
-            labels = labels.cuda()
+        # 确保所有数据都在 CPU 上
+        ids = ids.cpu()
+        att_mask = att_mask.cpu()
+        labels = labels.cpu()
         
         with torch.no_grad():
             logits = F.softmax(model(ids, att_mask), dim=1)
@@ -56,7 +55,22 @@ def evaluate_model(checkpoint_path):
 
     # 计算详细指标
     print("\n计算评估指标...")
-    ml.get_metrics_logits(all_true, all_pred)
+    metrics = ml.get_metrics_logits(all_true, all_pred)
+    
+    # 输出到 CSV 文件
+    print("\n保存评估结果到 CSV 文件...")
+    # 创建结果字典
+    results = {}
+    for key, value in metrics.items():
+        results[key] = [value]
+    
+    # 创建 DataFrame 并保存为 CSV
+    df = pd.DataFrame(results)
+    output_file = f"codebert_evaluation_results.csv"
+    df.to_csv(output_file, index=False)
+    print(f"评估结果已保存到: {output_file}")
+    print("\n评估结果:")
+    print(df)
 
 
 if __name__ == "__main__":

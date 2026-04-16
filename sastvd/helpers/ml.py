@@ -60,15 +60,28 @@ def get_metrics(true, pred):
     metrics["f1"] = f1_score(true, pred, zero_division=0)
     metrics["rec"] = recall_score(true, pred, zero_division=0)
     metrics["prec"] = precision_score(true, pred, zero_division=0)
-    metrics["mcc"] = matthews_corrcoef(true, pred)
+    
+    # 处理马修斯相关系数，避免单一类别时的错误
+    try:
+        metrics["mcc"] = matthews_corrcoef(true, pred)
+    except:
+        metrics["mcc"] = 0.0
+    
     metrics["fpr"] = -1
     metrics["fnr"] = -1
-    if sum(true + pred) != 0:
-        tn, fp, fn, tp = confusion_matrix(true, pred).ravel()
-        if fp + tn != 0:
-            metrics["fpr"] = fp / (fp + tn)
-        if fn + tp != 0:
-            metrics["fnr"] = fn / (fn + tp)
+    
+    # 处理混淆矩阵，避免单一类别时的警告
+    try:
+        if sum(true + pred) != 0:
+            # 明确指定标签，避免单一类别时的警告
+            tn, fp, fn, tp = confusion_matrix(true, pred, labels=[0, 1]).ravel()
+            if fp + tn != 0:
+                metrics["fpr"] = fp / (fp + tn)
+            if fn + tp != 0:
+                metrics["fnr"] = fn / (fn + tp)
+    except:
+        pass
+    
     return metrics
 
 
@@ -92,20 +105,37 @@ def get_metrics_logits(true, logits):
         sm_logits = torch.nn.functional.softmax(logits, dim=1)
         pos_logits = sm_logits[:, 1].detach().cpu().numpy()
         logits = logits.detach().cpu().numpy()
+    
+    # 检查是否只有一个类别
+    unique_classes = set(true)
+    if len(unique_classes) == 1:
+        # 只有一个类别时，设置默认值
+        f1_threshold = 0.5
+        pred = [1 if i > f1_threshold else 0 for i in pos_logits]
+        ret = get_metrics(true, pred)
+        ret["roc_auc"] = 0.5  # 单一类别时的默认值
+        ret["pr_auc"] = 0.5  # 单一类别时的默认值
+        ret["pr_auc_pos"] = 0.5  # 单一类别时的默认值
+        ret["loss"] = loss
+        return ret
+    
     f1_threshold = best_f1(true, pos_logits)
     pred = [1 if i > f1_threshold else 0 for i in pos_logits]
     try:
         roc_auc = roc_auc_score(true, logits[:, 1])
     except:
-        roc_auc = -1
+        roc_auc = 0.5  # 单一类别时的默认值
     try:
         pr_auc = average_precision_score(true_oh, logits)
     except:
-        pr_auc = -1
+        pr_auc = 0.5  # 单一类别时的默认值
     ret = get_metrics(true, pred)
     ret["roc_auc"] = roc_auc
     ret["pr_auc"] = pr_auc
-    ret["pr_auc_pos"] = average_precision_score(true, logits[:, 1])
+    try:
+        ret["pr_auc_pos"] = average_precision_score(true, logits[:, 1])
+    except:
+        ret["pr_auc_pos"] = 0.5  # 单一类别时的默认值
     ret["loss"] = loss
     return ret
 

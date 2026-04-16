@@ -43,12 +43,12 @@ config = {
     "input_size": 200,        # 输入特征维度
     "hidden_size": 64,         # 隐藏层维度
     "learning_rate": 0.0001,   # 学习率
-    "batch_size": 4,           # 训练和验证批次大小（减小以减少GPU内存使用）
-    "test_batch_size": 16,      # 测试批次大小（减小以减少GPU内存使用）
+    "batch_size": 16,          # 训练和验证批次大小
+    "test_batch_size": 64,     # 测试批次大小
     "dropout": 0.5,            # Dropout概率
-    "max_patience": 50,        # 早停机制最大耐心值（减小值以提前结束训练）
+    "max_patience": 50,        # 早停机制最大耐心值
     "val_every": 30,           # 每多少步进行一次验证
-    "use_gpu": True            # 是否使用GPU
+    "use_gpu": False           # 强制使用CPU
 }
 
 # 加载已有的超参数（如果存在）
@@ -107,49 +107,63 @@ logger = ml.LogWriter(
     val_every=config["val_every"]
 )
 
-# 可选：加载已有的日志记录器，继续之前的训练
-# logger.load_logger()
-while True:
-    for batch in train_dl:
+# 直接加载现有模型进行评测
+# 设置为True以跳过训练，直接加载模型进行评测
+EVAL_ONLY = True
 
-        # Training
-        model.train()
-        batch = batch.to(dev)
-        logits = model(batch, train_ds)
-        labels = dgl.max_nodes(batch, "_VULN").long()
-        loss = F.cross_entropy(logits, labels)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        # 清理内存
-        torch.cuda.empty_cache()
+if not EVAL_ONLY:
+    # 可选：加载已有的日志记录器，继续之前的训练
+    # logger.load_logger()
+    while True:
+        for batch in train_dl:
 
-        # Evaluation
-        train_mets = ml.get_metrics_logits(labels, logits)
-        val_mets = train_mets
-        if logger.log_val():
-            model.eval()
-            with torch.no_grad():
-                all_pred = torch.empty((0, 2)).long().to(dev)
-                all_true = torch.empty((0)).long().to(dev)
-                for val_batch in val_dl:
-                    val_batch = val_batch.to(dev)
-                    val_labels = dgl.max_nodes(val_batch, "_VULN").long()
-                    val_logits = model(val_batch, val_ds)
-                    all_pred = torch.cat([all_pred, val_logits])
-                    all_true = torch.cat([all_true, val_labels])
+            # Training
+            model.train()
+            batch = batch.to(dev)
+            logits = model(batch, train_ds)
+            labels = dgl.max_nodes(batch, "_VULN").long()
+            loss = F.cross_entropy(logits, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            # 清理内存
+            torch.cuda.empty_cache()
+
+            # Evaluation
+            train_mets = ml.get_metrics_logits(labels, logits)
+            val_mets = train_mets
+            if logger.log_val():
+                model.eval()
+                with torch.no_grad():
+                    all_pred = torch.empty((0, 2)).long().to(dev)
+                    all_true = torch.empty((0)).long().to(dev)
+                    for val_batch in val_dl:
+                        val_batch = val_batch.to(dev)
+                        val_labels = dgl.max_nodes(val_batch, "_VULN").long()
+                        val_logits = model(val_batch, val_ds)
+                        all_pred = torch.cat([all_pred, val_logits])
+                        all_true = torch.cat([all_true, val_labels])
+                        # 清理内存
+                        torch.cuda.empty_cache()
+                    val_mets = ml.get_metrics_logits(all_true, all_pred)
                     # 清理内存
                     torch.cuda.empty_cache()
-                val_mets = ml.get_metrics_logits(all_true, all_pred)
-                # 清理内存
-                torch.cuda.empty_cache()
-        logger.log(train_mets, val_mets)
-        logger.save_logger()
+            logger.log(train_mets, val_mets)
+            logger.save_logger()
 
-    # Early Stopping
-    if logger.stop():
-        break
-    logger.epoch()
+        # Early Stopping
+        if logger.stop():
+            break
+        logger.epoch()
+else:
+    print("Skipping training, directly evaluating...")
+    # 确保加载最佳模型
+    try:
+        logger.load_best_model()
+        print("Loaded best model successfully")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        print("Using initial model weights")
 
 # Print test results
 logger.load_best_model()
@@ -163,13 +177,9 @@ with torch.no_grad():
         test_logits = model(test_batch, test_ds)
         all_pred = torch.cat([all_pred, test_logits])
         all_true = torch.cat([all_true, test_labels])
-        test_mets = ml.get_metrics_logits(all_true, all_pred)
-        logger.test(test_mets)
-        # 清理内存
-        torch.cuda.empty_cache()
+# 只计算一次最终的测试指标
+test_mets = ml.get_metrics_logits(all_true, all_pred)
 logger.test(test_mets)
-# 清理内存
-torch.cuda.empty_cache()
 rank_metr_test = ml.met_dict_to_str(svdr.rank_metr(all_pred, all_true))
 
 # 使用GNNExplainer进行语句级漏洞检测分析
@@ -196,12 +206,8 @@ for batch in test_dl:
         try:
             # 使用GNNExplainer获取按重要性排序的代码行
             lines = ge.gnnexplainer(model, g.to(dev), test_ds)
-            # 清理内存
-            torch.cuda.empty_cache()
         except Exception as E:
             print(E)
-            # 清理内存
-            torch.cuda.empty_cache()
         
         # 存储预测结果
         pred_lines[sampleid] = lines

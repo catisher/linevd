@@ -327,7 +327,7 @@ class GruWrapper(nn.Module):
     """
 
     def __init__(
-        self, input_size, hidden_size, num_layers=1, dropout=0, bidirectional=False, device=None
+        self, input_size, hidden_size, num_layers=1, dropout=0, bidirectional=False
     ):
         """初始化GRU包装器。
 
@@ -343,11 +343,8 @@ class GruWrapper(nn.Module):
             层间 dropout 概率（默认为0）
         bidirectional: bool, 可选
             是否使用双向GRU（默认为False）
-        device: torch.device, 可选
-            计算设备，如果为None则使用CPU
         """
         super(GruWrapper, self).__init__()
-        self.device =  torch.device("cpu")
         self.gru = dl.DynamicRNN(
             nn.GRU(
                 input_size,
@@ -357,7 +354,7 @@ class GruWrapper(nn.Module):
                 bidirectional=bidirectional,
                 batch_first=True,
             )
-        ).to(self.device)
+        )
 
     def forward(self, x, x_lens, return_sequence=False):
         """前向传播。
@@ -404,7 +401,7 @@ class IVDetect(nn.Module):
     5. 全连接层用于最终的漏洞分类
     """
 
-    def __init__(self, input_size, hidden_size, dropout=0.5, device=None):
+    def __init__(self, input_size, hidden_size, dropout=0.5):
         """初始化IVDetect模型。
 
         参数
@@ -415,27 +412,26 @@ class IVDetect(nn.Module):
             隐藏状态的维度
         dropout: float, 可选
             dropout 概率（默认为0.5）
-        device: torch.device, 可选
-            计算设备，如果为None则自动检测
         """
         super(IVDetect, self).__init__()
-        # 设备选择（强制使用CPU）
-        self.dev = torch.device("cpu")
-        # 初始化GRU包装器用于处理不同的序列特征（传递设备参数）
-        self.gru = GruWrapper(input_size, hidden_size, device=self.dev)
-        self.gru2 = GruWrapper(input_size, hidden_size, device=self.dev)
-        self.gru3 = GruWrapper(input_size, hidden_size, device=self.dev)
-        self.gru4 = GruWrapper(input_size, hidden_size, device=self.dev)
+        # 初始化GRU包装器用于处理不同的序列特征
+        self.gru = GruWrapper(input_size, hidden_size)
+        self.gru2 = GruWrapper(input_size, hidden_size)
+        self.gru3 = GruWrapper(input_size, hidden_size)
+        self.gru4 = GruWrapper(input_size, hidden_size)
         # 双向GRU用于特征融合
         self.bigru = nn.GRU(
             hidden_size, hidden_size, bidirectional=True, batch_first=True
-        ).to(self.dev)
+        )
+        # 设备选择
+        #self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.dev = torch.device("cpu")
         # TreeLSTM用于处理AST结构
         self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0, dev=self.dev)
         # GCN用于图表示学习
-        self.gcn = GraphConv(hidden_size, 2).to(self.dev)
+        self.gcn = GraphConv(hidden_size, 2)
         # 全连接层用于特征连接
-        self.connect = nn.Linear(hidden_size * 3 * 2, hidden_size).to(self.dev)
+        self.connect = nn.Linear(hidden_size * 3 * 2, hidden_size)
         # Dropout概率
         self.dropout = dropout
         # 隐藏层大小
@@ -512,14 +508,14 @@ class IVDetect(nn.Module):
         # 通过GRU / TreeLSTM处理
         F1, _ = self.gru(
             pad_sequence(feat["f1"], batch_first=True).to(self.dev),
-            torch.Tensor(feat["f1_lens"]).long(),  # 保持在CPU上
+            torch.Tensor(feat["f1_lens"]).long(),
         )
         # 确保 asts 在正确的设备上
         asts = asts.to(self.dev)
         F2 = self.treelstm(asts)
         F3, _ = self.gru2(
             pad_sequence(feat["f3"], batch_first=True).to(self.dev),
-            torch.Tensor(feat["f3_lens"]).long(),  # 保持在CPU上
+            torch.Tensor(feat["f3_lens"]).long(),
         )
         # F4, _ = self.gru3(
         #     pad_sequence(feat["f1"], batch_first=True).to(self.dev),

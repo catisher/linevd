@@ -419,11 +419,8 @@ class IVDetect(nn.Module):
             计算设备，如果为None则自动检测
         """
         super(IVDetect, self).__init__()
-        # 设备选择（必须先设置，因为GruWrapper需要）
-        if device is not None:
-            self.dev = device
-        else:
-            self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # 设备选择（强制使用CPU）
+        self.dev = torch.device("cpu")
         # 初始化GRU包装器用于处理不同的序列特征（传递设备参数）
         self.gru = GruWrapper(input_size, hidden_size, device=self.dev)
         self.gru2 = GruWrapper(input_size, hidden_size, device=self.dev)

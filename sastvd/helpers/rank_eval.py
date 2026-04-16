@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from sklearn.metrics import roc_auc_score
 
 
@@ -223,14 +224,20 @@ def get_r(pred, true, r_thresh=0.5, idx=0):
     """根据输出分数对预测值进行排序并生成相关性列表。
     
     参数:
-        pred: 预测值列表
-        true: 真实标签列表
+        pred: 预测值列表或PyTorch张量
+        true: 真实标签列表或PyTorch张量
         r_thresh: 相关性阈值，默认为0.5
         idx: 用于排序的索引位置，默认为0
     
     返回:
         list: 按预测分数排序后的相关性列表，1表示相关，0表示不相关
     """
+    # 检查并转换PyTorch张量
+    if isinstance(pred, torch.Tensor):
+        pred = pred.cpu().numpy()
+    if isinstance(true, torch.Tensor):
+        true = true.cpu().numpy()
+    
     zipped = list(zip(pred, true))
     zipped.sort(reverse=True, key=lambda x: x[idx])
     return [1 if i[0] > r_thresh and i[1] == 1 else 0 for i in zipped]
@@ -240,16 +247,31 @@ def rank_metr(pred, true, r_thresh=0.5, perfect=False):
     """计算所有排名指标。
     
     参数:
-        pred: 预测值列表
-        true: 真实标签列表
+        pred: 预测值列表或PyTorch张量
+        true: 真实标签列表或PyTorch张量
         r_thresh: 相关性阈值，默认为0.5
         perfect: 是否使用完美排序，默认为False
     
     返回:
         dict: 包含所有计算的排名指标的字典
     """
-    if not any([i != 0 and i != 1 for i in pred]):
-        print("警告：预测值是二值的，不是连续的。")
+    # 检查并转换PyTorch张量
+    if isinstance(pred, torch.Tensor):
+        pred_np = pred.cpu().numpy()
+        # 检查是否所有值都是0或1
+        if np.all((pred_np == 0) | (pred_np == 1)):
+            print("警告：预测值是二值的，不是连续的。")
+    else:
+        pred_np = pred
+        # 原始的检查逻辑，用于处理非张量输入
+        if not any([i != 0 and i != 1 for i in pred_np]):
+            print("警告：预测值是二值的，不是连续的。")
+    
+    if isinstance(true, torch.Tensor):
+        true_np = true.cpu().numpy()
+    else:
+        true_np = true
+    
     ret = dict()
     kvals = [1, 3, 5, 10, 15, 20]
     r = get_r(pred, true, r_thresh, idx=1 if perfect else 0)
@@ -267,11 +289,11 @@ def rank_metr(pred, true, r_thresh=0.5, perfect=False):
         ret[f"AR@{k}"] = AR(r, k)
         last_vals = [ret[f"nDCG@{k}"], ret[f"MAP@{k}"], ret[f"FR@{k}"], ret[f"AR@{k}"]]
 
-    mean_true = np.mean(true)
+    mean_true = np.mean(true_np)
     if mean_true == 0 or mean_true == 1:
         ret["AUC"] = np.nan
     else:
-        ret["AUC"] = roc_auc_score(true, pred)
+        ret["AUC"] = roc_auc_score(true_np, pred_np)
     ret["MFR"] = MFR(r)
     ret["MAR"] = MAR(r)
     return ret

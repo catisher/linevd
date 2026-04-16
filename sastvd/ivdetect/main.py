@@ -110,6 +110,10 @@ logger = ml.LogWriter(
 # 直接加载现有模型进行评测
 # 设置为True以跳过训练，直接加载模型进行评测
 EVAL_ONLY = True
+# 已训练模型的路径（如果存在）
+# 如果设置了该路径，会尝试加载指定的模型
+TRAINED_MODEL_PATH = None
+# 示例：TRAINED_MODEL_PATH = "path/to/your/trained/model/best.model"
 
 if not EVAL_ONLY:
     # 可选：加载已有的日志记录器，继续之前的训练
@@ -157,16 +161,27 @@ if not EVAL_ONLY:
         logger.epoch()
 else:
     print("Skipping training, directly evaluating...")
-    # 确保加载最佳模型
-    try:
-        logger.load_best_model()
-        print("Loaded best model successfully")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        print("Using initial model weights")
+    # 尝试加载已训练的模型
+    if TRAINED_MODEL_PATH and os.path.exists(TRAINED_MODEL_PATH):
+        try:
+            model.load_state_dict(torch.load(TRAINED_MODEL_PATH, map_location=dev))
+            print(f"Loaded trained model from {TRAINED_MODEL_PATH}")
+        except Exception as e:
+            print(f"Error loading model from {TRAINED_MODEL_PATH}: {e}")
+            print("Using initial model weights")
+    else:
+        # 确保加载最佳模型
+        try:
+            logger.load_best_model()
+            print("Loaded best model successfully")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            print("Using initial model weights")
 
 # Print test results
-logger.load_best_model()
+# 只有在非评测模式下才尝试加载最佳模型
+if not EVAL_ONLY:
+    logger.load_best_model()
 model.eval()
 all_pred = torch.empty((0, 2)).long().to(dev)
 all_true = torch.empty((0)).long().to(dev)

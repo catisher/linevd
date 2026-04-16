@@ -327,7 +327,7 @@ class GruWrapper(nn.Module):
     """
 
     def __init__(
-        self, input_size, hidden_size, num_layers=1, dropout=0, bidirectional=False
+        self, input_size, hidden_size, num_layers=1, dropout=0, bidirectional=False, device=None
     ):
         """初始化GRU包装器。
 
@@ -343,8 +343,11 @@ class GruWrapper(nn.Module):
             层间 dropout 概率（默认为0）
         bidirectional: bool, 可选
             是否使用双向GRU（默认为False）
+        device: torch.device, 可选
+            计算设备，如果为None则使用CPU
         """
         super(GruWrapper, self).__init__()
+        self.device =  torch.device("cpu")
         self.gru = dl.DynamicRNN(
             nn.GRU(
                 input_size,
@@ -354,7 +357,7 @@ class GruWrapper(nn.Module):
                 bidirectional=bidirectional,
                 batch_first=True,
             )
-        )
+        ).to(self.device)
 
     def forward(self, x, x_lens, return_sequence=False):
         """前向传播。
@@ -416,26 +419,26 @@ class IVDetect(nn.Module):
             计算设备，如果为None则自动检测
         """
         super(IVDetect, self).__init__()
-        # 初始化GRU包装器用于处理不同的序列特征
-        self.gru = GruWrapper(input_size, hidden_size)
-        self.gru2 = GruWrapper(input_size, hidden_size)
-        self.gru3 = GruWrapper(input_size, hidden_size)
-        self.gru4 = GruWrapper(input_size, hidden_size)
-        # 双向GRU用于特征融合
-        self.bigru = nn.GRU(
-            hidden_size, hidden_size, bidirectional=True, batch_first=True
-        )
-        # 设备选择
+        # 设备选择（必须先设置，因为GruWrapper需要）
         if device is not None:
             self.dev = device
         else:
             self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # 初始化GRU包装器用于处理不同的序列特征（传递设备参数）
+        self.gru = GruWrapper(input_size, hidden_size, device=self.dev)
+        self.gru2 = GruWrapper(input_size, hidden_size, device=self.dev)
+        self.gru3 = GruWrapper(input_size, hidden_size, device=self.dev)
+        self.gru4 = GruWrapper(input_size, hidden_size, device=self.dev)
+        # 双向GRU用于特征融合
+        self.bigru = nn.GRU(
+            hidden_size, hidden_size, bidirectional=True, batch_first=True
+        ).to(self.dev)
         # TreeLSTM用于处理AST结构
         self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0, dev=self.dev)
         # GCN用于图表示学习
-        self.gcn = GraphConv(hidden_size, 2)
+        self.gcn = GraphConv(hidden_size, 2).to(self.dev)
         # 全连接层用于特征连接
-        self.connect = nn.Linear(hidden_size * 3 * 2, hidden_size)
+        self.connect = nn.Linear(hidden_size * 3 * 2, hidden_size).to(self.dev)
         # Dropout概率
         self.dropout = dropout
         # 隐藏层大小

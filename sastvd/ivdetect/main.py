@@ -22,9 +22,9 @@ train_ds = ivd.BigVulDatasetIVDetect(partition="train")
 val_ds = ivd.BigVulDatasetIVDetect(partition="val")
 test_ds = ivd.BigVulDatasetIVDetect(partition="test")
 dl_args = {"drop_last": False, "shuffle": True, "num_workers": 6}
-train_dl = GraphDataLoader(train_ds, batch_size=16, **dl_args)
-val_dl = GraphDataLoader(val_ds, batch_size=16, **dl_args)
-test_dl = GraphDataLoader(test_ds, batch_size=64, **dl_args)
+train_dl = GraphDataLoader(train_ds, batch_size=8, **dl_args)
+val_dl = GraphDataLoader(val_ds, batch_size=8, **dl_args)
+test_dl = GraphDataLoader(test_ds, batch_size=16, **dl_args)
 
 # %% Create model
 dev = torch.device("cpu")

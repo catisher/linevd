@@ -43,8 +43,8 @@ config = {
     "input_size": 200,        # 输入特征维度
     "hidden_size": 64,         # 隐藏层维度
     "learning_rate": 0.0001,   # 学习率
-    "batch_size": 16,          # 训练和验证批次大小
-    "test_batch_size": 64,     # 测试批次大小
+    "batch_size": 4,           # 训练和验证批次大小（减小以减少GPU内存使用）
+    "test_batch_size": 16,      # 测试批次大小（减小以减少GPU内存使用）
     "dropout": 0.5,            # Dropout概率
     "max_patience": 50,        # 早停机制最大耐心值（减小值以提前结束训练）
     "val_every": 30,           # 每多少步进行一次验证
@@ -86,6 +86,8 @@ batch = next(iter(GraphDataLoader(train_ds, batch_size=1, **dl_args)))
 batch = batch.to(dev)
 # 模型前向传播，获取预测结果
 logits = model(batch, train_ds)
+# 清理内存
+torch.cuda.empty_cache()
 
 # 优化器和损失函数配置
 # 使用交叉熵损失函数，适用于多分类问题
@@ -119,6 +121,8 @@ while True:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # 清理内存
+        torch.cuda.empty_cache()
 
         # Evaluation
         train_mets = ml.get_metrics_logits(labels, logits)
@@ -134,7 +138,11 @@ while True:
                     val_logits = model(val_batch, val_ds)
                     all_pred = torch.cat([all_pred, val_logits])
                     all_true = torch.cat([all_true, val_labels])
+                    # 清理内存
+                    torch.cuda.empty_cache()
                 val_mets = ml.get_metrics_logits(all_true, all_pred)
+                # 清理内存
+                torch.cuda.empty_cache()
         logger.log(train_mets, val_mets)
         logger.save_logger()
 
@@ -157,7 +165,11 @@ with torch.no_grad():
         all_true = torch.cat([all_true, test_labels])
         test_mets = ml.get_metrics_logits(all_true, all_pred)
         logger.test(test_mets)
+        # 清理内存
+        torch.cuda.empty_cache()
 logger.test(test_mets)
+# 清理内存
+torch.cuda.empty_cache()
 rank_metr_test = ml.met_dict_to_str(svdr.rank_metr(all_pred, all_true))
 
 # 使用GNNExplainer进行语句级漏洞检测分析
@@ -184,8 +196,12 @@ for batch in test_dl:
         try:
             # 使用GNNExplainer获取按重要性排序的代码行
             lines = ge.gnnexplainer(model, g.to(dev), test_ds)
+            # 清理内存
+            torch.cuda.empty_cache()
         except Exception as E:
             print(E)
+            # 清理内存
+            torch.cuda.empty_cache()
         
         # 存储预测结果
         pred_lines[sampleid] = lines

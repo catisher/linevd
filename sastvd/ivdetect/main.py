@@ -1,22 +1,21 @@
 """IVDetect漏洞检测方法的实现。"""
 
 
-import pickle as pkl
 import os
 import json
+import pandas as pd
 from importlib import reload
 
 import dgl
 import sastvd as svd
 import sastvd.helpers.ml as ml
 import sastvd.helpers.rank_eval as svdr
-import sastvd.ivdetect.evaluate as ivde
-import sastvd.ivdetect.gnnexplainer as ge
 import sastvd.ivdetect.helpers as ivd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dgl.dataloading import GraphDataLoader
+from sastvd.linevd import get_relevant_metrics
 
 # 加载数据集
 # 重新加载ivd模块以确保使用最新的实现
@@ -46,7 +45,7 @@ config = {
     "batch_size": 16,          # 训练和验证批次大小
     "test_batch_size": 64,     # 测试批次大小
     "dropout": 0.5,            # Dropout概率
-    "max_patience": 50,        # 早停机制最大耐心值
+    "max_patience": 10,        # 早停机制最大耐心值（减小值以提前结束训练）
     "val_every": 30,           # 每多少步进行一次验证
     "use_gpu": False           # 强制使用CPU
 }
@@ -79,15 +78,7 @@ model = ivd.IVDetect(config["input_size"], config["hidden_size"], config["dropou
 # 将模型移动到指定设备
 model.to(dev)
 
-# 调试单个样本
-# 获取第一个训练批次用于模型调试
-batch = next(iter(GraphDataLoader(train_ds, batch_size=1, **dl_args)))
-# 将批次数据移动到指定设备
-batch = batch.to(dev)
-# 模型前向传播，获取预测结果
-logits = model(batch, train_ds)
-# 清理内存
-torch.cuda.empty_cache()
+
 
 # 优化器和损失函数配置
 # 使用交叉熵损失函数，适用于多分类问题
@@ -195,66 +186,9 @@ with torch.no_grad():
 # 只计算一次最终的测试指标
 test_mets = ml.get_metrics_logits(all_true, all_pred)
 logger.test(test_mets)
-rank_metr_test = ml.met_dict_to_str(svdr.rank_metr(all_pred, all_true))
-
-# 使用GNNExplainer进行语句级漏洞检测分析
-# 获取BigVul数据集中的正确依赖添加行
-correct_lines = ivde.get_dep_add_lines_bigvul()
-
-# 存储预测的漏洞行
-pred_lines = dict()
-
-# 遍历测试集批次
-for batch in test_dl:
-    # 将批次拆分为单个图
-    for g in dgl.unbatch(batch):
-        # 获取样本ID
-        sampleid = g.ndata["_SAMPLE"].max().int().item()
-        
-        # 跳过不在正确行数据中的样本
-        if sampleid not in correct_lines:
-            continue
-        # 跳过已处理的样本
-        if sampleid in pred_lines:
-            continue
-        
-        try:
-            # 使用GNNExplainer获取按重要性排序的代码行
-            lines = ge.gnnexplainer(model, g.to(dev), test_ds)
-        except Exception as E:
-            print(E)
-        
-        # 存储预测结果
-        pred_lines[sampleid] = lines
-
-# 将预测结果保存到文件
-with open(svd.cache_dir() / "pred_lines.pkl", "wb") as f:
-    pkl.dump(pred_lines, f)
-
-# 计算平均首次命中排名（MFR）
-# MFR衡量模型在检测到真正的漏洞行之前需要检查的行数
-MFR = []
-for sampleid, pred in pred_lines.items():
-    # 获取该样本的真实漏洞行
-    true = correct_lines[sampleid]
-    true = list(true["removed"]) + list(true["depadd"])
-    
-    # 查找真实漏洞行在预测列表中的位置
-    for i, p in enumerate(pred):
-        if p in true:
-            MFR += [i]
-            break
-
-# 打印平均MFR值，值越小表示模型性能越好
-print(sum(MFR) / len(MFR))
-
-# 保存评估结果为 CSV 文件
-import pandas as pd
-from sastvd.linevd import get_relevant_metrics
 
 # 收集评估指标
 rank_metrics = svdr.rank_metr(all_pred, all_true)
-MFR_value = sum(MFR) / len(MFR) if MFR else 0
 
 # 构建 trial_result 结构
 trial_result = [
@@ -273,9 +207,6 @@ trial_result[2][5] = rank_metrics.get("MAP@5", 0.0)
 
 # 使用 get_relevant_metrics 函数
 relevant_metrics = get_relevant_metrics(trial_result)
-
-# 添加 MFR 到结果中
-relevant_metrics["MFR"] = MFR_value
 
 # 创建 DataFrame 并保存为 CSV
 df = pd.DataFrame([relevant_metrics])

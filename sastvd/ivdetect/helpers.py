@@ -512,14 +512,14 @@ class IVDetect(nn.Module):
         # 通过GRU / TreeLSTM处理
         F1, _ = self.gru(
             pad_sequence(feat["f1"], batch_first=True).to(self.dev),
-            torch.Tensor(feat["f1_lens"]).long().to(self.dev),
+            torch.Tensor(feat["f1_lens"]).long(),  # 保持在CPU上
         )
         # 确保 asts 在正确的设备上
         asts = asts.to(self.dev)
         F2 = self.treelstm(asts)
         F3, _ = self.gru2(
             pad_sequence(feat["f3"], batch_first=True).to(self.dev),
-            torch.Tensor(feat["f3_lens"]).long().to(self.dev),
+            torch.Tensor(feat["f3_lens"]).long(),  # 保持在CPU上
         )
         # F4, _ = self.gru3(
         #     pad_sequence(feat["f1"], batch_first=True).to(self.dev),

@@ -46,7 +46,7 @@ config = {
     "batch_size": 16,          # 训练和验证批次大小
     "test_batch_size": 64,     # 测试批次大小
     "dropout": 0.5,            # Dropout概率
-    "max_patience": 10000,     # 早停机制最大耐心值
+    "max_patience": 50,        # 早停机制最大耐心值（减小值以提前结束训练）
     "val_every": 30,           # 每多少步进行一次验证
     "use_gpu": True            # 是否使用GPU
 }

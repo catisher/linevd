@@ -188,7 +188,9 @@ test_mets = ml.get_metrics_logits(all_true, all_pred)
 logger.test(test_mets)
 
 # 收集评估指标
-rank_metrics = svdr.rank_metr(all_pred, all_true)
+# 只使用正类的预测概率（第二列）
+pos_pred = all_pred[:, 1]
+rank_metrics = svdr.rank_metr(pos_pred, all_true)
 
 # 构建 trial_result 结构
 trial_result = [

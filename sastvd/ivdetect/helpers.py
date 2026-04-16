@@ -401,7 +401,7 @@ class IVDetect(nn.Module):
     5. 全连接层用于最终的漏洞分类
     """
 
-    def __init__(self, input_size, hidden_size, dropout=0.5):
+    def __init__(self, input_size, hidden_size, dropout=0.5, device=None):
         """初始化IVDetect模型。
 
         参数
@@ -412,6 +412,8 @@ class IVDetect(nn.Module):
             隐藏状态的维度
         dropout: float, 可选
             dropout 概率（默认为0.5）
+        device: torch.device, 可选
+            计算设备，如果为None则自动检测
         """
         super(IVDetect, self).__init__()
         # 初始化GRU包装器用于处理不同的序列特征
@@ -424,8 +426,10 @@ class IVDetect(nn.Module):
             hidden_size, hidden_size, bidirectional=True, batch_first=True
         )
         # 设备选择
-        #self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.dev = torch.device("cpu")
+        if device is not None:
+            self.dev = device
+        else:
+            self.dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # TreeLSTM用于处理AST结构
         self.treelstm = ivdts.TreeLSTM(input_size, hidden_size, dropout=0, dev=self.dev)
         # GCN用于图表示学习
@@ -508,14 +512,14 @@ class IVDetect(nn.Module):
         # 通过GRU / TreeLSTM处理
         F1, _ = self.gru(
             pad_sequence(feat["f1"], batch_first=True).to(self.dev),
-            torch.Tensor(feat["f1_lens"]).long(),
+            torch.Tensor(feat["f1_lens"]).long().to(self.dev),
         )
         # 确保 asts 在正确的设备上
         asts = asts.to(self.dev)
         F2 = self.treelstm(asts)
         F3, _ = self.gru2(
             pad_sequence(feat["f3"], batch_first=True).to(self.dev),
-            torch.Tensor(feat["f3_lens"]).long(),
+            torch.Tensor(feat["f3_lens"]).long().to(self.dev),
         )
         # F4, _ = self.gru3(
         #     pad_sequence(feat["f1"], batch_first=True).to(self.dev),

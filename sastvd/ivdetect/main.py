@@ -1,8 +1,9 @@
-"""IVDetect漏洞检测方法的实现。
-"""
+"""IVDetect漏洞检测方法的实现。"""
 
 
 import pickle as pkl
+import os
+import json
 from importlib import reload
 
 import dgl
@@ -21,11 +22,6 @@ from dgl.dataloading import GraphDataLoader
 # 重新加载ivd模块以确保使用最新的实现
 reload(ivd)
 # 创建训练、验证和测试数据集
-# 使用BigVulDatasetIVDetect类处理数据并生成图结构
-# partition参数指定数据集划分
-# "train"：训练集，用于模型训练
-# "val"：验证集，用于训练过程中的模型评估和早停
-# "test"：测试集，用于最终评估模型性能
 train_ds = ivd.BigVulDatasetIVDetect(partition="train")
 val_ds = ivd.BigVulDatasetIVDetect(partition="val")
 test_ds = ivd.BigVulDatasetIVDetect(partition="test")
@@ -37,28 +33,55 @@ dl_args = {
     "num_workers": 6     # 数据加载的并行工作进程数
 }
 
-# 创建图数据加载器，用于批量加载图数据
-# 训练集和验证集使用较小的批次大小(16)，测试集使用较大的批次大小(64)
-train_dl = GraphDataLoader(train_ds, batch_size=16, **dl_args)
-val_dl = GraphDataLoader(val_ds, batch_size=16, **dl_args)
-test_dl = GraphDataLoader(test_ds, batch_size=64, **dl_args)
+# 获取唯一的运行ID，用于保存模型和日志
+ID = svd.get_run_id({})
+# 可选：使用已有的运行ID进行模型加载和继续训练
+# ID = "202108121558_79d3273"
+
+# 超参数配置
+config = {
+    "input_size": 200,        # 输入特征维度
+    "hidden_size": 64,         # 隐藏层维度
+    "learning_rate": 0.0001,   # 学习率
+    "batch_size": 16,          # 训练和验证批次大小
+    "test_batch_size": 64,     # 测试批次大小
+    "dropout": 0.5,            # Dropout概率
+    "max_patience": 10000,     # 早停机制最大耐心值
+    "val_every": 30,           # 每多少步进行一次验证
+    "use_gpu": True            # 是否使用GPU
+}
+
+# 加载已有的超参数（如果存在）
+config_path = svd.processed_dir() / "ivdetect" / ID / "config.json"
+if os.path.exists(config_path):
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    print(f"Loaded configuration from {config_path}")
+else:
+    # 保存当前配置
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=4)
+    print(f"Saved configuration to {config_path}")
 
 # 创建模型
-# 选择计算设备，优先使用CUDA GPU，如果不可用则使用CPU
-#dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-dev = torch.device("cpu")
+# 选择计算设备，根据配置决定是否使用GPU
+if config["use_gpu"] and torch.cuda.is_available():
+    dev = torch.device("cuda:0")
+    print("Using GPU: cuda:0")
+else:
+    dev = torch.device("cpu")
+    print("Using CPU")
 # 打印调试信息，显示当前使用的设备
 svd.debug(dev)
 # 创建IVDetect模型实例
-# 参数1(200)：输入特征维度，对应GloVe词嵌入的维度
-# 参数2(64)：隐藏层维度，控制模型复杂度
-model = ivd.IVDetect(200, 64)
+model = ivd.IVDetect(config["input_size"], config["hidden_size"], config["dropout"], device=dev)
 # 将模型移动到指定设备
 model.to(dev)
 
 # 调试单个样本
 # 获取第一个训练批次用于模型调试
-batch = next(iter(train_dl))
+batch = next(iter(GraphDataLoader(train_ds, batch_size=1, **dl_args)))
 # 将批次数据移动到指定设备
 batch = batch.to(dev)
 # 模型前向传播，获取预测结果
@@ -67,24 +90,19 @@ logits = model(batch, train_ds)
 # 优化器和损失函数配置
 # 使用交叉熵损失函数，适用于多分类问题
 criterion = nn.CrossEntropyLoss()
-# 使用Adam优化器，学习率设置为0.0001
-# model.parameters()：模型的所有可训练参数
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+# 使用Adam优化器
+optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"])
 
-# 训练循环设置
-# 获取唯一的运行ID，用于保存模型和日志
-ID = svd.get_run_id({})
-# 可选：使用已有的运行ID进行模型加载和继续训练
-# ID = "202108121558_79d3273"
+# 创建图数据加载器，用于批量加载图数据
+train_dl = GraphDataLoader(train_ds, batch_size=config["batch_size"], **dl_args)
+val_dl = GraphDataLoader(val_ds, batch_size=config["batch_size"], **dl_args)
+test_dl = GraphDataLoader(test_ds, batch_size=config["test_batch_size"], **dl_args)
 
 # 创建日志记录器
-# 参数说明：
-# model：要保存的模型
-# svd.processed_dir() / "ivdetect" / ID：日志和模型的保存路径
-# max_patience=10000：早停机制的最大耐心值
-# val_every=30：每30个训练步骤进行一次验证评估
 logger = ml.LogWriter(
-    model, svd.processed_dir() / "ivdetect" / ID, max_patience=10000, val_every=30
+    model, svd.processed_dir() / "ivdetect" / ID, 
+    max_patience=config["max_patience"], 
+    val_every=config["val_every"]
 )
 
 # 可选：加载已有的日志记录器，继续之前的训练
@@ -195,31 +213,35 @@ print(sum(MFR) / len(MFR))
 
 # 保存评估结果为 CSV 文件
 import pandas as pd
+from sastvd.linevd import get_relevant_metrics
 
 # 收集评估指标
-metrics = {
-    "test_metrics": test_mets,
-    "rank_metrics": svdr.rank_metr(all_pred, all_true),
-    "MFR": sum(MFR) / len(MFR) if MFR else 0
-}
-
-# 创建结果字典
-results = {}
-
-# 添加测试指标
-for key, value in test_mets.items():
-    results[f"test_{key}"] = [value]
-
-# 添加排名指标
 rank_metrics = svdr.rank_metr(all_pred, all_true)
-for key, value in rank_metrics.items():
-    results[key] = [value]
+MFR_value = sum(MFR) / len(MFR) if MFR else 0
 
-# 添加 MFR
-results["MFR"] = [sum(MFR) / len(MFR) if MFR else 0]
+# 构建 trial_result 结构
+trial_result = [
+    ID,  # 试验 ID
+    str(svd.processed_dir() / "ivdetect" / ID / "best.model"),  # 检查点路径
+    [0] * 10,  # 前10名准确率，这里填充占位符
+    test_mets,  # 语句级评估指标
+    test_mets,  # 方法级评估指标（使用相同的测试指标）
+    rank_metrics,  # 排名评估指标
+    test_mets,  # 语句行级评估指标（使用相同的测试指标）
+    config["learning_rate"]  # 学习率
+]
+
+# 计算 acc@5（使用排名指标中的相关值或占位符）
+trial_result[2][5] = rank_metrics.get("MAP@5", 0.0)
+
+# 使用 get_relevant_metrics 函数
+relevant_metrics = get_relevant_metrics(trial_result)
+
+# 添加 MFR 到结果中
+relevant_metrics["MFR"] = MFR_value
 
 # 创建 DataFrame 并保存为 CSV
-df = pd.DataFrame(results)
+df = pd.DataFrame([relevant_metrics])
 output_file = f"ivdetect_evaluation_results.csv"
 df.to_csv(output_file, index=False)
 print(f"评估结果已保存到: {output_file}")

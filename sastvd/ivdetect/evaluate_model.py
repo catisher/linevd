@@ -14,7 +14,7 @@ import torch
 from dgl.dataloading import GraphDataLoader
 
 # 配置
-MODEL_PATH = "d:/repositories/linevd/sastvd/processed/ivdetect/202108121558_79d3273/best.model"  # 替换为实际模型路径
+MODEL_PATH = "/home/wmy/linevd/storage/processed/ivdetect/202604170054_0077d02_test/best.model"  # 替换为实际模型路径
 dev = torch.device("cpu")  # 与训练时保持一致
 
 # 加载测试数据

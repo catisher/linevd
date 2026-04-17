@@ -31,14 +31,8 @@ class LineVDPredictor:
         print("加载 CodeBERT 模型...")
         self.codebert = cb.CodeBert()
         
-        # 查找检查点文件
-        checkpoint_files = self._find_checkpoint_files()
-        
-        if not checkpoint_files:
-            raise Exception("未找到模型检查点文件")
-        
-        # 使用第一个找到的检查点
-        checkpoint_path = checkpoint_files[0]
+        # 固定检查点路径
+        checkpoint_path = "/home/wmy/linevd/storage/processed/raytune_baseline_-1/202604070632_2f49f45_规范实验/tune_linevd_baseline/train_linevd_7ea25_00000_0_batch_size=256,embtype=codebert,gamma=2,gatdropout=0.2000,gnntype=gat,gtype=pdg_raw,hdropout=0.3000,hfe_2026-04-07_06-32-29/checkpoint_000099"
         print(f"加载模型检查点: {checkpoint_path}")
         
         # 加载模型
@@ -47,24 +41,7 @@ class LineVDPredictor:
         self.model.eval()
         print("模型加载完成")
     
-    def _find_checkpoint_files(self):
-        """查找模型检查点文件"""
-        # 搜索 raytune 目录
-        raytune_dirs = glob(str(svd.processed_dir() / "raytune_*_-1"))
-        checkpoint_files = []
-        
-        for base_dir in raytune_dirs:
-            # 递归查找所有 checkpoint 文件
-            trial_dirs = glob(f"{base_dir}/**/train_linevd_*", recursive=True)
-            for trial_dir in trial_dirs:
-                # 查找 checkpoint 子目录
-                checkpoint_dirs = glob(f"{trial_dir}/checkpoint_*")
-                for checkpoint_dir in checkpoint_dirs:
-                    checkpoint_file = os.path.join(checkpoint_dir, "checkpoint")
-                    if os.path.exists(checkpoint_file):
-                        checkpoint_files.append(checkpoint_file)
-        
-        return checkpoint_files
+
     
     def _build_graph(self, code_lines, line_numbers, ei, eo, et):
         """构建 DGL 图并添加节点特征
@@ -86,6 +63,8 @@ class LineVDPredictor:
         code_cleaned = [c.replace("\\t", "").replace("\\n", "") for c in code_lines]
         code_embeddings = self.codebert.encode(code_cleaned).detach().cpu()
         g.ndata["_CODEBERT"] = code_embeddings
+        # 同时添加 GRAPHCODEBERT 嵌入（使用相同的嵌入值）
+        g.ndata["_GRAPHCODEBERT"] = code_embeddings
         
         # 添加行号特征
         g.ndata["_LINE"] = torch.Tensor(line_numbers).int()

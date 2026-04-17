@@ -191,3 +191,6 @@ python sastvd/scripts/generate_myrq1_data.py
 python sastvd/scripts/generate_myrq2_data.py
 python sastvd/scripts/generate_myrq3_data.py
 python sastvd/scripts/generate_myrq4_data.py
+
+
+python linevd-ui/backend/models/predictor.py

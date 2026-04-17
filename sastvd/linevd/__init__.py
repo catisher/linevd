@@ -1624,6 +1624,7 @@ class LitGNN(pl.LightningModule):
         # 计算多任务指标
         self.res2mt = ml.get_metrics_logits(multitask_true, multitask_pred)
         # 计算行级指标
+        # 就tm的这个
         self.res2 = ml.get_metrics_logits(all_true, all_pred)
         # 计算方法级指标
         self.res2f = ml.get_metrics_logits(all_true_f, all_pred_f)

@@ -33,8 +33,8 @@ model.eval()
 
 # 测试评估
 print("开始测试评估...")
-all_pred = []
-all_true = []
+all_pred = []  # 语句级预测
+all_true = []  # 语句级真实标签
 all_true_f = []  # 方法级真实标签
 all_pred_f = []  # 方法级预测
 all_funcs = []  # 用于语句级评估的函数列表
@@ -61,26 +61,51 @@ with torch.no_grad():
             node_logits = test_logits[i].unsqueeze(0).repeat(num_nodes, 1)
             node_labels = g.ndata["_VULN"].long().cpu().numpy().tolist()
             
+            # 收集语句级预测和标签
+            all_true.append(torch.tensor(node_labels))
+            sm_logits = torch.softmax(node_logits, dim=1)
+            all_pred.append(sm_logits)
+            
             # 构建语句级预测列表
-            sm_logits = torch.softmax(node_logits, dim=1).cpu().numpy().tolist()
-            all_funcs.append([sm_logits, node_labels, [test_labels[i].item()]])
+            sm_logits_list = sm_logits.cpu().numpy().tolist()
+            all_funcs.append([sm_logits_list, node_labels, [test_labels[i].item()]])
         
         batch_count += 1
         if batch_count % 10 == 0:
             print(f"已处理 {batch_count} 个批次...")
 
-# 合并所有预测和标签
+# 合并所有语句级预测和标签
+all_true = torch.cat(all_true, dim=0)
+all_pred = torch.cat(all_pred, dim=0)
+
+# 合并所有方法级预测和标签
 all_true_f = torch.cat(all_true_f, dim=0)
 all_pred_f = torch.cat(all_pred_f, dim=0)
 
+print(f"总语句数: {len(all_true)}")
 print(f"总样本数: {len(all_true_f)}")
 
-# 计算语句级评估指标
+# 计算语句级评估指标（就是这个）
 print("计算语句级评估指标...")
+res2 = ml.get_metrics_logits(all_true, all_pred)
+
+print("\n=== 语句级指标 (res2) ===")
+print(f"准确率: {res2['acc']:.4f}")
+print(f"精确率: {res2['prec']:.4f}")
+print(f"召回率: {res2['rec']:.4f}")
+print(f"F1值: {res2['f1']:.4f}")
+print(f"AUC: {res2['roc_auc']:.4f}")
+print(f"PR-AUC: {res2['pr_auc']:.4f}")
+print(f"MCC: {res2['mcc']:.4f}")
+print(f"FPR: {res2['fpr']:.4f}")
+print(f"FNR: {res2['fnr']:.4f}")
+
+# 计算语句级排名准确率
+print("\n计算语句级评估指标...")
 res1 = ivde.eval_statements_list(all_funcs)
 res1vo = ivde.eval_statements_list(all_funcs, vo=True, thresh=0)
 
-print("\n=== 语句级评估结果 ===")
+print("\n=== 语句级排名准确率 (res1) ===")
 print("包含负样本的排名准确率:")
 for k, v in res1.items():
     print(f"Top-{k}: {v:.4f}")
@@ -90,14 +115,14 @@ for k, v in res1vo.items():
 
 # 计算方法级评估指标
 print("\n计算方法级评估指标...")
-test_mets_f = ml.get_metrics_logits(all_true_f, all_pred_f)
+res2f = ml.get_metrics_logits(all_true_f, all_pred_f)
 
-print("\n=== 方法级测试结果 ===")
-print(f"准确率: {test_mets_f['acc']:.4f}")
-print(f"精确率: {test_mets_f['prec']:.4f}")
-print(f"召回率: {test_mets_f['rec']:.4f}")
-print(f"F1值: {test_mets_f['f1']:.4f}")
-print(f"AUC: {test_mets_f['roc_auc']:.4f}")
+print("\n=== 方法级指标 (res2f) ===")
+print(f"准确率: {res2f['acc']:.4f}")
+print(f"精确率: {res2f['prec']:.4f}")
+print(f"召回率: {res2f['rec']:.4f}")
+print(f"F1值: {res2f['f1']:.4f}")
+print(f"AUC: {res2f['roc_auc']:.4f}")
 
 # 计算排名指标
 print("\n计算排名指标...")
@@ -113,7 +138,7 @@ for af in all_funcs:
 try:
     # 计算所有样本的平均排名指标
     res3 = ml.dict_mean(rank_metrs)
-    print("\n=== 所有样本排名指标 ===")
+    print("\n=== 所有样本排名指标 (res3) ===")
     for k, v in res3.items():
         print(f"{k}: {v:.4f}")
 except Exception as E:
@@ -122,7 +147,7 @@ except Exception as E:
 # 计算仅正样本的平均排名指标
 try:
     res3vo = ml.dict_mean(rank_metrs_vo)
-    print("\n=== 仅正样本排名指标 ===")
+    print("\n=== 仅正样本排名指标 (res3vo) ===")
     for k, v in res3vo.items():
         print(f"{k}: {v:.4f}")
 except Exception as E:
@@ -145,55 +170,8 @@ for af in all_funcs:
 
 # 计算从行级预测方法级的指标
 res4 = ml.get_metrics(method_level_true, method_level_pred)
-print("\n=== 从语句级预测方法级结果 ===")
+print("\n=== 从语句级预测方法级结果 (res4) ===")
 print(f"准确率: {res4['acc']:.4f}")
 print(f"精确率: {res4['prec']:.4f}")
 print(f"召回率: {res4['rec']:.4f}")
 print(f"F1值: {res4['f1']:.4f}")
-
-# 语句级分析（与main.py一致）
-print("\n开始GNNExplainer分析...")
-correct_lines = ivde.get_dep_add_lines_bigvul()
-pred_lines = dict()
-
-sample_count = 0
-for batch in test_dl:
-    for g in dgl.unbatch(batch):
-        sampleid = g.ndata["_SAMPLE"].max().int().item()
-        if sampleid not in correct_lines:
-            continue
-        if sampleid in pred_lines:
-            continue
-        try:
-            lines = ge.gnnexplainer(model, g.to(dev), test_ds)
-        except Exception as E:
-            print(E)
-        pred_lines[sampleid] = lines
-        sample_count += 1
-        if sample_count % 10 == 0:
-            print(f"已分析 {sample_count} 个样本...")
-
-# 保存预测结果
-with open(svd.cache_dir() / "pred_lines.pkl", "wb") as f:
-    pkl.dump(pred_lines, f)
-
-# 计算MFR
-MFR = []
-for sampleid, pred in pred_lines.items():
-    true = correct_lines[sampleid]
-    true = list(true["removed"]) + list(true["depadd"])
-    for i, p in enumerate(pred):
-        if p in true:
-            MFR += [i]
-            break
-
-if MFR:
-    mean_mfr = sum(MFR) / len(MFR)
-    print(f"\n=== GNNExplainer 结果 ===")
-    print(f"Mean First Rank (MFR): {mean_mfr:.2f}")
-    print(f"MFR总和: {sum(MFR)}")
-    print(f"MFR数量: {len(MFR)}")
-else:
-    print("\n没有找到匹配的漏洞行")
-
-print("\n评估完成！")

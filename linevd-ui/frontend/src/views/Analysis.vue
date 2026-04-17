@@ -6,7 +6,7 @@
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>代码编辑器</span>
+              <span>代码编辑器（热力图视图）</span>
               <div class="header-actions">
                 <el-upload
                   action=""
@@ -28,24 +28,64 @@
             </div>
           </template>
           
+          <div class="heatmap-legend">
+            <span class="legend-title">风险等级：</span>
+            <div class="legend-item">
+              <div class="legend-color high"></div>
+              <span>高危</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color medium"></div>
+              <span>中危</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color low"></div>
+              <span>低危</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color safe"></div>
+              <span>安全</span>
+            </div>
+          </div>
+          
           <div class="editor-container">
+            <div class="confidence-numbers">
+              <div 
+                v-for="line in lineCount" 
+                :key="line"
+                class="confidence-number"
+                :style="{ backgroundColor: getLineColor(line) }"
+              >
+                <span v-if="getLineConfidence(line) > 0" class="line-confidence">
+                  {{ (getLineConfidence(line) * 100).toFixed(0) }}%
+                </span>
+              </div>
+            </div>
             <div class="line-numbers">
               <div 
                 v-for="line in lineCount" 
                 :key="line"
-                :class="['line-number', { 'vulnerable': isVulnerableLine(line) }]"
+                class="line-number"
+              >
+                <span class="line-text">{{ line }}</span>
+              </div>
+            </div>
+            <div
+              class="code-editor"
+              contenteditable
+              @input="handleCodeInput"
+              @scroll="syncScroll"
+              ref="codeEditor"
+            >
+              <div 
+                v-for="(line, index) in codeLines" 
+                :key="index + 1"
+                class="code-line"
+                :style="{ backgroundColor: getLineColor(index + 1) }"
               >
                 {{ line }}
               </div>
             </div>
-            <textarea
-              v-model="code"
-              class="code-editor"
-              placeholder="请输入 C/C++ 代码..."
-              @input="updateLineCount"
-              @scroll="syncScroll"
-              ref="codeEditor"
-            ></textarea>
           </div>
         </el-card>
       </el-col>
@@ -98,7 +138,7 @@
                   :type="getSeverityType(vuln.severity)"
                   :icon="getSeverityIcon(vuln.severity)"
                 >
-                  <div class="vulnerability-item">
+                  <div class="vulnerability-item" :style="{ borderLeftColor: getSeverityColor(vuln.severity) }">
                     <div class="vuln-header">
                       <el-tag :type="getSeverityType(vuln.severity)" size="small">
                         {{ vuln.severity }}
@@ -137,7 +177,7 @@ const code = ref(`#include <stdio.h>
 void vulnerable_function(char *input) {
     char buffer[10];
     strcpy(buffer, input);  // 高危：缓冲区溢出
-    printf("%s\\n", buffer);
+    printf("%s\n", buffer);
 }
 
 int main() {
@@ -146,6 +186,9 @@ int main() {
     vulnerable_function(user_input);
     return 0;
 }`)
+
+// 响应式数据：代码行数组
+const codeLines = ref([])
 
 // 响应式数据：代码行数
 const lineCount = ref(0)
@@ -176,6 +219,20 @@ onMounted(() => {
  */
 const updateLineCount = () => {
   lineCount.value = code.value.split('\n').length
+  codeLines.value = code.value.split('\n')
+}
+
+/**
+ * 处理代码输入
+ * @param {Event} e - 输入事件对象
+ */
+const handleCodeInput = (e) => {
+  const target = e.target
+  // 获取所有代码行
+  const lines = target.querySelectorAll('.code-line')
+  const codeContent = Array.from(lines).map(line => line.textContent).join('\n')
+  code.value = codeContent
+  updateLineCount()
 }
 
 /**
@@ -185,19 +242,58 @@ const updateLineCount = () => {
 const syncScroll = (e) => {
   // 获取行号容器元素
   const lineNumbers = document.querySelector('.line-numbers')
+  const confidenceNumbers = document.querySelector('.confidence-numbers')
   if (lineNumbers) {
     // 同步滚动位置
     lineNumbers.scrollTop = e.target.scrollTop
   }
+  if (confidenceNumbers) {
+    // 同步滚动位置
+    confidenceNumbers.scrollTop = e.target.scrollTop
+  }
 }
 
 /**
- * 检查某行是否为漏洞行
+ * 获取某行的热力图颜色
  * @param {number} line - 行号
- * @returns {boolean} - 是否为漏洞行
+ * @returns {string} - CSS颜色值
  */
-const isVulnerableLine = (line) => {
-  return vulnerabilities.value.some(v => v.line === line)
+const getLineColor = (line) => {
+  const vuln = vulnerabilities.value.find(v => v.line === line)
+  if (!vuln) return 'transparent'
+  
+  const confidence = vuln.confidence
+  if (vuln.severity === 'High') {
+    return `rgba(245, 108, 108, ${0.3 + confidence * 0.7})`
+  } else if (vuln.severity === 'Medium') {
+    return `rgba(230, 162, 60, ${0.3 + confidence * 0.7})`
+  } else {
+    return `rgba(103, 194, 58, ${0.3 + confidence * 0.7})`
+  }
+}
+
+/**
+ * 获取某行的置信度
+ * @param {number} line - 行号
+ * @returns {number} - 置信度值
+ */
+const getLineConfidence = (line) => {
+  const vuln = vulnerabilities.value.find(v => v.line === line)
+  return vuln ? vuln.confidence : 0
+}
+
+/**
+ * 获取严重程度对应的颜色
+ * @param {string} severity - 严重程度
+ * @returns {string} - CSS颜色值
+ */
+const getSeverityColor = (severity) => {
+  const map = {
+    'High': '#f56c6c',
+    'Medium': '#e6a23c',
+    'Low': '#67c23a'
+  }
+  return map[severity] || '#909399'
 }
 
 /**
@@ -239,7 +335,7 @@ const handleFileChange = (file) => {
   reader.onload = (e) => {
     // 更新代码内容
     code.value = e.target.result
-    // 更新代码行数
+    // 更新代码行数和代码行数组
     updateLineCount()
   }
   // 以文本形式读取文件
@@ -358,6 +454,50 @@ const analyzeCode = async () => {
   gap: 10px;
 }
 
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px 15px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.legend-title {
+  font-weight: bold;
+  color: #606266;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.legend-color.high {
+  background: rgba(245, 108, 108, 0.8);
+}
+
+.legend-color.medium {
+  background: rgba(230, 162, 60, 0.8);
+}
+
+.legend-color.low {
+  background: rgba(103, 194, 58, 0.8);
+}
+
+.legend-color.safe {
+  background: #f5f7fa;
+  border: 1px solid #dcdfe6;
+}
+
 .editor-container {
   display: flex;
   height: 500px;
@@ -366,12 +506,33 @@ const analyzeCode = async () => {
   overflow: hidden;
 }
 
+.confidence-numbers {
+  width: 40px;
+  background-color: #f5f7fa;
+  border-right: 1px solid #dcdfe6;
+  overflow-y: auto;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.confidence-number {
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+  padding: 0 2px;
+  box-sizing: border-box;
+  margin: 0;
+}
+
 .line-numbers {
   width: 50px;
   background-color: #f5f7fa;
   border-right: 1px solid #dcdfe6;
-  padding: 10px 0;
-  overflow: hidden;
+  overflow-y: auto;
   text-align: center;
   font-family: 'Courier New', monospace;
   font-size: 14px;
@@ -380,25 +541,51 @@ const analyzeCode = async () => {
 
 .line-number {
   height: 21px;
-  color: #909399;
+  color: #606266;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  box-sizing: border-box;
+  margin: 0;
 }
 
-.line-number.vulnerable {
-  background-color: #fde2e2;
-  color: #f56c6c;
-  font-weight: bold;
+.line-text {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.line-confidence {
+  font-size: 9px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1;
+  text-align: center;
+  min-width: 25px;
 }
 
 .code-editor {
   flex: 1;
   border: none;
   outline: none;
-  padding: 10px;
+  padding: 0;
   font-family: 'Courier New', monospace;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 21px;
   resize: none;
   background-color: #fafafa;
+  overflow-y: auto;
+}
+
+.code-line {
+  padding: 0 10px;
+  height: 21px;
+  line-height: 21px;
+  white-space: pre;
+  transition: background-color 0.3s ease;
+  margin: 0;
 }
 
 .results-card {
@@ -457,6 +644,7 @@ const analyzeCode = async () => {
   padding: 10px;
   background: #f5f7fa;
   border-radius: 4px;
+  border-left: 3px solid #409eff;
 }
 
 .vuln-header {

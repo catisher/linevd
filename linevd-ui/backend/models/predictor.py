@@ -221,10 +221,17 @@ if __name__ == "__main__":
     # 测试代码
     test_code = """
 #include <stdio.h>
-int main() {
+#include <string.h>
+void vulnerable_function(char *input) {
     char buffer[10];
-    gets(buffer);
-    printf("%s", buffer);
+    strcpy(buffer, input);  // 高危：缓冲区溢出
+    printf("%s
+", buffer);
+}
+int main() {
+    char user_input[100];
+    gets(user_input);  // 高危：不安全的输入
+    vulnerable_function(user_input);
     return 0;
 }
 """

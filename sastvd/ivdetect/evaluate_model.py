@@ -55,7 +55,7 @@ print(f"准确率: {test_mets['acc']:.4f}")
 print(f"精确率: {test_mets['prec']:.4f}")
 print(f"召回率: {test_mets['rec']:.4f}")
 print(f"F1值: {test_mets['f1']:.4f}")
-print(f"AUC: {test_mets['auc']:.4f}")
+print(f"AUC: {test_mets['roc_auc']:.4f}")
 print(f"排名指标: {rank_metr_test}")
 
 # 语句级分析（与main.py一致）

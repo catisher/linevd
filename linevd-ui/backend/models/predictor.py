@@ -230,20 +230,23 @@ if __name__ == "__main__":
     
     # 测试代码
     test_code = """
-#include <stdio.h>
-#include <string.h>
-void vulnerable_function(char *input) {
-    char buffer[10];
-    strcpy(buffer, input);  // 高危：缓冲区溢出
-    printf("%s
-", buffer);
-}
-int main() {
-    char user_input[100];
-    gets(user_input);  // 高危：不安全的输入
-    vulnerable_function(user_input);
-    return 0;
-}
+  bool asn1_read_BOOLEAN(struct asn1_data *data, bool *v)
+  {
+         uint8_t tmp = 0;
+       asn1_start_tag(data, ASN1_BOOLEAN);
+       asn1_read_uint8(data, &tmp);
+//        if (!asn1_start_tag(data, ASN1_BOOLEAN)) return false;
+//        *v = false;
+//        if (!asn1_read_uint8(data, &tmp)) return false;
+         if (tmp == 0xFF) {
+                 *v = true;
+       } else {
+               *v = false;
+         }
+       asn1_end_tag(data);
+       return !data->has_error;
+//        return asn1_end_tag(data);
+  }
 """
     
     result = predictor.predict(test_code)

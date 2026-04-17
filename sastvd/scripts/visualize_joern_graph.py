@@ -14,12 +14,8 @@ def main():
     """Main function to run Joern and visualize the graph."""
     # Hardcoded example code
     example_code = """
-short add (short b) {
-    short a = 32767;
-    if (b > 0) {
-        a = a + b;
-    }
-    return a;
+int add(int a, int b) {
+    return a + b;
 }
 """
     

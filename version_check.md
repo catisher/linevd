@@ -141,6 +141,7 @@ scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_empirical_results/myrq1_graphco
 scp -r wmy@10.2.0.11:/home/wmy/linevd/storage/outputs ./local_outputs
 scp wmy@10.2.0.11:/home/wmy/linevd/codebert_evaluation_results.csv .
 
+scp wmy@10.2.0.11:~/linevd/joern_graph.pdf .
 nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
 
 tail -f train.log

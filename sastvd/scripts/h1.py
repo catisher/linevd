@@ -12,7 +12,6 @@
 import os
 import glob
 import json
-from glob import glob
 
 import pandas as pd
 import pytorch_lightning as pl

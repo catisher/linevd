@@ -35,11 +35,42 @@ class LineVDPredictor:
         checkpoint_path = "/home/wmy/linevd/storage/processed/raytune_baseline_-1/202604070632_2f49f45_规范实验/tune_linevd_baseline/train_linevd_7ea25_00000_0_batch_size=256,embtype=codebert,gamma=2,gatdropout=0.2000,gnntype=gat,gtype=pdg_raw,hdropout=0.3000,hfe_2026-04-07_06-32-29/checkpoint_000099"
         print(f"加载模型检查点: {checkpoint_path}")
         
+        # 检查检查点文件是否存在
+        if not os.path.exists(checkpoint_path):
+            raise Exception(f"检查点文件不存在: {checkpoint_path}")
+        
+        # 检查是否是目录
+        if os.path.isdir(checkpoint_path):
+            print(f"检查点路径是目录，在目录中查找检查点文件...")
+            # 在目录中查找检查点文件
+            try:
+                dir_files = os.listdir(checkpoint_path)
+                # 查找常见的检查点文件
+                checkpoint_files_in_dir = []
+                for f in dir_files:
+                    if any(f.endswith(ext) for ext in [".ckpt", ".pt", ".pth", ".bin"]) or "checkpoint" in f:
+                        checkpoint_files_in_dir.append(f)
+                
+                if not checkpoint_files_in_dir:
+                    raise Exception(f"在目录中未找到检查点文件: {checkpoint_path}")
+                
+                # 使用第一个找到的检查点文件
+                checkpoint_file = os.path.join(checkpoint_path, checkpoint_files_in_dir[0])
+                print(f"在目录中找到检查点文件: {checkpoint_file}")
+                checkpoint_path = checkpoint_file
+            except Exception as e:
+                raise Exception(f"读取目录时出错: {e}")
+        
+        print(f"使用检查点文件: {checkpoint_path}")
+        
         # 加载模型
-        self.model = lvd.LitGNN.load_from_checkpoint(checkpoint_path, strict=False)
-        self.model.to(self.device)
-        self.model.eval()
-        print("模型加载完成")
+        try:
+            self.model = lvd.LitGNN.load_from_checkpoint(checkpoint_path, strict=False)
+            self.model.to(self.device)
+            self.model.eval()
+            print("模型加载完成")
+        except Exception as e:
+            raise Exception(f"模型加载失败: {e}")
     
 
     

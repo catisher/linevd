@@ -55,4 +55,6 @@ linevd-ui/backend/*.pyc
 # 本地输出文件夹
 local_outputs/
 **/local_outputs/
+local_directory/
+**/local_directory/
 

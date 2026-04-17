@@ -141,7 +141,7 @@ scp wmy@10.2.0.11:~/linevd/storage/outputs/myrq1_empirical_results/myrq1_graphco
 
 scp -r wmy@10.2.0.11:/home/wmy/linevd/storage/outputs ./local_outputs
 scp wmy@10.2.0.11:/home/wmy/linevd/codebert_evaluation_results.csv .
-
+scp -r wmy@10.2.0.11:/home/wmy/linevd/storage/outputs/visualise_preds/* ./local_directory/
 scp wmy@10.2.0.11:~/linevd/joern_graph.pdf .
 scp wmy@10.2.0.11:~/linevd/minimal_assignment_graph.pdf .
 scp wmy@10.2.0.11:~/linevd/manual_code_structure.pdf .

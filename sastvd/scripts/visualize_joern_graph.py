@@ -6,6 +6,7 @@ Joern Graph Visualization Script with Hardcoded Example
 This script runs Joern on a hardcoded example and visualizes the resulting code property graph.
 """
 
+import os
 import sastvd.helpers.joern as svdj
 import sastvd as svd
 
@@ -38,9 +39,20 @@ short add (short b) {
     
     # Visualize the graph
     print("Visualizing the graph...")
-    svdj.plot_graph_node_edge_df(nodes, edges, edge_label=True)
     
-    print("Graph visualization completed. Check /tmp/tmp.gv for the output.")
+    # Get the digraph object
+    dot = svdj.get_digraph(
+        nodes[["id", "node_label"]].to_numpy().tolist(),
+        edges[["outnode", "innode", "etype"]].to_numpy().tolist(),
+        edge_label=True
+    )
+    
+    # Save to file instead of opening automatically
+    output_path = "./joern_graph"
+    dot.render(output_path, format="pdf", cleanup=True)
+    
+    print(f"Graph saved to: {output_path}.pdf")
+    print("You can open this file manually to view the graph.")
 
 if __name__ == "__main__":
     main()

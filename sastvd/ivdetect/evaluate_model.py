@@ -109,9 +109,13 @@ print("\n=== 语句级排名准确率 (res1) ===")
 print("包含负样本的排名准确率:")
 for k, v in res1.items():
     print(f"Top-{k}: {v:.4f}")
-print("\n仅包含正样本的排名准确率:")
+print("\n仅包含正样本的排名准确率 (res1vo):")
 for k, v in res1vo.items():
     print(f"Top-{k}: {v:.4f}")
+
+# 提取 acc@5 指标
+acc_at_5 = res1vo.get(5, 0.0)
+print(f"\nacc@5: {acc_at_5:.4f}")
 
 # 计算方法级评估指标
 print("\n计算方法级评估指标...")

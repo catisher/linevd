@@ -143,6 +143,7 @@ scp -r wmy@10.2.0.11:/home/wmy/linevd/storage/outputs ./local_outputs
 scp wmy@10.2.0.11:/home/wmy/linevd/codebert_evaluation_results.csv .
 
 scp wmy@10.2.0.11:~/linevd/joern_graph.pdf .
+scp wmy@10.2.0.11:~/linevd/minimal_assignment_graph.pdf .
 scp wmy@10.2.0.11:~/linevd/assignment_joern_graph.pdf .
 nohup python sastvd/scripts/train_best.py > train.log 2>&1 &
 

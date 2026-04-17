@@ -418,35 +418,35 @@ const analyzeCode = async () => {
         line: 1, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.1 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '#include <stdio.h>' 
       },
       { 
         line: 2, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '#include <string.h>' 
       },
       { 
         line: 3, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: 'void vulnerable_function(char *input) {' 
       },
       { 
         line: 4, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '    char buffer[10];' 
       },
       { 
         line: 5, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '' 
       },
       {
@@ -460,42 +460,42 @@ const analyzeCode = async () => {
         line: 7, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '    printf("%s\n", buffer);' 
       },
       { 
         line: 8, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '}' 
       },
       { 
         line: 9, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: 'int main() {' 
       },
       { 
         line: 10, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '    char user_input[100];' 
       },
       { 
         line: 11, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '' 
       },
       { 
         line: 12, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 + 0, 
         code_snippet: '' 
       },
       {
@@ -509,21 +509,21 @@ const analyzeCode = async () => {
         line: 14, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19 , 
         code_snippet: '    vulnerable_function(user_input);' 
       },
       { 
         line: 15, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19, 
         code_snippet: '    return 0;' 
       },
       { 
         line: 16, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.3 + 0.1, 
+        confidence: Math.random() * 0.19, 
         code_snippet: '}' 
       }
     ]

@@ -220,13 +220,13 @@ def MAR(r):
     return np.mean(ret)
 
 
-def get_r(pred, true, r_thresh=0.5, idx=0):
-    """根据输出分数对预测值进行排序并生成相关性列表。
+def get_r(pred, true, r_thresh, idx=0):
+    """获取按预测分数排序后的相关性列表。
     
     参数:
         pred: 预测值列表或PyTorch张量
         true: 真实标签列表或PyTorch张量
-        r_thresh: 相关性阈值，默认为0.5
+        r_thresh: 相关性阈值
         idx: 用于排序的索引位置，默认为0
     
     返回:
@@ -238,8 +238,15 @@ def get_r(pred, true, r_thresh=0.5, idx=0):
     if isinstance(true, torch.Tensor):
         true = true.cpu().numpy()
     
+    # 确保 pred 和 true 是一维数组
+    if pred.ndim > 1:
+        pred = pred.flatten()
+    if true.ndim > 1:
+        true = true.flatten()
+    
     zipped = list(zip(pred, true))
-    zipped.sort(reverse=True, key=lambda x: x[idx])
+    # 排序时确保使用标量值
+    zipped.sort(reverse=True, key=lambda x: float(x[idx]))
     return [1 if i[0] > r_thresh and i[1] == 1 else 0 for i in zipped]
 
 

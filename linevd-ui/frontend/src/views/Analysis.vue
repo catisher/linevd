@@ -1,12 +1,20 @@
 <template>
   <div class="analysis">
-    <el-row :gutter="20">
+    <div class="page-header">
+      <h2>代码漏洞分析</h2>
+      <p class="page-subtitle">使用深度学习模型检测代码中的潜在漏洞</p>
+    </div>
+    
+    <el-row :gutter="30">
       <!-- 左侧：代码编辑器 -->
       <el-col :span="14">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="editor-card">
           <template #header>
             <div class="card-header">
-              <span>代码编辑器（热力图视图）</span>
+              <div class="header-left">
+                <el-icon class="header-icon"><Code /></el-icon>
+                <span>代码编辑器</span>
+              </div>
               <div class="header-actions">
                 <el-upload
                   action=""
@@ -14,13 +22,14 @@
                   :on-change="handleFileChange"
                   :show-file-list="false"
                   accept=".c,.cpp,.h"
+                  class="upload-btn"
                 >
                   <el-button type="primary" plain>
                     <el-icon><Upload /></el-icon>
                     上传文件
                   </el-button>
                 </el-upload>
-                <el-button type="success" @click="analyzeCode" :loading="analyzing">
+                <el-button type="success" @click="analyzeCode" :loading="analyzing" class="analyze-btn">
                   <el-icon><Search /></el-icon>
                   开始分析
                 </el-button>
@@ -56,7 +65,7 @@
                 class="confidence-number"
                 :style="{ backgroundColor: getLineColor(line) }"
               >
-                <span v-if="getLineConfidence(line) > 0" class="line-confidence">
+                <span class="line-confidence">
                   {{ (getLineConfidence(line) * 100).toFixed(0) }}%
                 </span>
               </div>
@@ -95,33 +104,40 @@
         <el-card shadow="hover" class="results-card">
           <template #header>
             <div class="card-header">
-              <span>分析结果</span>
-              <el-tag v-if="analysisComplete" type="success">分析完成</el-tag>
+              <div class="header-left">
+                <el-icon class="header-icon"><DataAnalysis /></el-icon>
+                <span>分析结果</span>
+              </div>
+              <el-tag v-if="analysisComplete" type="success" effect="dark">分析完成</el-tag>
             </div>
           </template>
           
           <div v-if="!analysisComplete" class="empty-state">
-            <el-icon size="48" color="#909399"><InfoFilled /></el-icon>
+            <el-icon size="64" color="#409eff"><InfoFilled /></el-icon>
             <p>点击"开始分析"检测代码漏洞</p>
+            <p class="empty-hint">支持 C/C++ 代码的漏洞检测</p>
           </div>
           
           <div v-else class="results-content">
             <!-- 统计信息 -->
-            <el-row :gutter="10" class="stats">
+            <el-row :gutter="15" class="stats">
               <el-col :span="8">
                 <div class="stat-item high">
+                  <el-icon class="stat-icon"><WarningFilled /></el-icon>
                   <div class="stat-number">{{ highRiskCount }}</div>
                   <div class="stat-label">高危</div>
                 </div>
               </el-col>
               <el-col :span="8">
                 <div class="stat-item medium">
+                  <el-icon class="stat-icon"><InfoFilled /></el-icon>
                   <div class="stat-number">{{ mediumRiskCount }}</div>
                   <div class="stat-label">中危</div>
                 </div>
               </el-col>
               <el-col :span="8">
                 <div class="stat-item low">
+                  <el-icon class="stat-icon"><CheckFilled /></el-icon>
                   <div class="stat-number">{{ lowRiskCount }}</div>
                   <div class="stat-label">低危</div>
                 </div>
@@ -130,21 +146,30 @@
             
             <!-- 漏洞列表 -->
             <div class="vulnerability-list">
-              <h4>检测到的漏洞</h4>
+              <div class="list-header">
+                <h4>检测到的漏洞</h4>
+                <el-badge :value="vulnerabilities.length" type="danger" :max="99" />
+              </div>
               <el-timeline>
                 <el-timeline-item
                   v-for="(vuln, index) in vulnerabilities"
                   :key="index"
                   :type="getSeverityType(vuln.severity)"
                   :icon="getSeverityIcon(vuln.severity)"
+                  class="timeline-item"
                 >
                   <div class="vulnerability-item" :style="{ borderLeftColor: getSeverityColor(vuln.severity) }">
                     <div class="vuln-header">
-                      <el-tag :type="getSeverityType(vuln.severity)" size="small">
+                      <el-tag :type="getSeverityType(vuln.severity)" size="small" effect="dark">
                         {{ vuln.severity }}
                       </el-tag>
                       <span class="line-number">第 {{ vuln.line }} 行</span>
-                      <span class="confidence">置信度: {{ (vuln.confidence * 100).toFixed(1) }}%</span>
+                      <el-tooltip content="预测置信度" placement="top">
+                        <span class="confidence">
+                          <el-icon class="confidence-icon"><Star /></el-icon>
+                          {{ (vuln.confidence * 100).toFixed(1) }}%
+                        </span>
+                      </el-tooltip>
                     </div>
                     <div class="vuln-message">{{ vuln.message }}</div>
                     <div class="vuln-code">{{ vuln.code_snippet }}</div>
@@ -153,8 +178,9 @@
               </el-timeline>
               
               <div v-if="vulnerabilities.length === 0" class="no-vulnerabilities">
-                <el-icon size="24" color="#67c23a"><CheckFilled /></el-icon>
+                <el-icon size="32" color="#67c23a"><CheckFilled /></el-icon>
                 <p>未检测到漏洞</p>
+                <p class="safe-hint">代码看起来很安全！</p>
               </div>
             </div>
           </div>
@@ -169,6 +195,8 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 // 导入 Element Plus 的消息提示组件
 import { ElMessage } from 'element-plus'
+// 导入 Element Plus 的图标组件
+import { CheckFilled, InfoFilled, Search, Upload, Code, DataAnalysis, WarningFilled, Star } from '@element-plus/icons-vue'
 
 // 响应式数据：代码内容，初始值为示例 C 代码
 const code = ref(`#include <stdio.h>
@@ -198,6 +226,8 @@ const analyzing = ref(false)
 const analysisComplete = ref(false)
 // 响应式数据：漏洞列表
 const vulnerabilities = ref([])
+// 响应式数据：所有行的预测结果映射（行号 -> 预测结果）
+const linePredictions = ref({})
 // 响应式数据：高危漏洞数量
 const highRiskCount = ref(0)
 // 响应式数据：中危漏洞数量
@@ -278,8 +308,8 @@ const getLineColor = (line) => {
  * @returns {number} - 置信度值
  */
 const getLineConfidence = (line) => {
-  const vuln = vulnerabilities.value.find(v => v.line === line)
-  return vuln ? vuln.confidence : 0
+  const pred = linePredictions.value[line]
+  return pred ? pred.confidence : 0
 }
 
 /**
@@ -350,7 +380,7 @@ const analyzeCode = async () => {
   analyzing.value = true
   try {
     // 发送 POST 请求到后端 API
-    const response = await axios.post('http://localhost:8000/predict', {
+    const response = await axios.post('http://10.2.0.11:8000/predict', {
       code: code.value,       // 代码内容
       language: 'c'           // 语言类型
     })
@@ -365,6 +395,17 @@ const analyzeCode = async () => {
     
     // 遍历后端返回的每个结果
     apiResults.forEach(result => {
+      // 计算置信度（对SAFE行取1-confidence，对VULNERABLE行取confidence）
+      let confidence = result.confidence
+      if (result.prediction === 'SAFE') {
+        confidence = 1 - confidence
+      }
+      // 存储到所有行预测映射中
+      linePredictions.value[result.line] = {
+        prediction: result.prediction,
+        confidence: confidence
+      }
+      
       // 只处理预测为 VULNERABLE 的结果
       if (result.prediction === 'VULNERABLE') {
         // 提取代码行
@@ -375,7 +416,7 @@ const analyzeCode = async () => {
         const codeSnippet = lineIndex >= 0 && lineIndex < codeLines.length 
           ? codeLines[lineIndex].trim() 
           : ''
-        
+        result.confidence = 1-result.confidence
         // 根据置信度确定严重程度
         let severity = 'Low'
         if (result.confidence > 0.8) {
@@ -541,129 +582,222 @@ const analyzeCode = async () => {
 </script>
 
 <style scoped>
+/* 页面头部 */
+.page-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.page-header h2 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #303133;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-subtitle {
+  font-size: 16px;
+  color: #606266;
+  margin: 0;
+}
+
+/* 卡片样式 */
+.editor-card,
+.results-card {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.editor-card:hover,
+.results-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 卡片头部 */
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 20px;
+  height: 60px;
+  background: #fafafa;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-icon {
+  font-size: 20px;
+  color: #409eff;
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
+.upload-btn .el-button,
+.analyze-btn {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.analyze-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
+}
+
+/* 热力图图例 */
 .heatmap-legend {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 10px 15px;
+  gap: 20px;
+  padding: 15px 20px;
   background: #f5f7fa;
-  border-radius: 4px;
-  margin-bottom: 10px;
+  border-radius: 8px;
+  margin: 20px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .legend-title {
-  font-weight: bold;
+  font-weight: 600;
   color: #606266;
+  font-size: 14px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 }
 
 .legend-color {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .legend-color.high {
-  background: rgba(245, 108, 108, 0.8);
+  background: linear-gradient(135deg, #f56c6c 0%, #e6a23c 100%);
 }
 
 .legend-color.medium {
-  background: rgba(230, 162, 60, 0.8);
+  background: linear-gradient(135deg, #e6a23c 0%, #67c23a 100%);
 }
 
 .legend-color.low {
-  background: rgba(103, 194, 58, 0.8);
+  background: linear-gradient(135deg, #67c23a 0%, #409eff 100%);
 }
 
 .legend-color.safe {
   background: #f5f7fa;
   border: 1px solid #dcdfe6;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* 编辑器容器 */
 .editor-container {
   display: flex;
-  height: 500px;
+  height: 550px;
   border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
+  margin: 0 20px 20px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* 置信度列 */
 .confidence-numbers {
-  width: 40px;
-  background-color: #f5f7fa;
-  border-right: 1px solid #dcdfe6;
-  overflow-y: auto;
-  text-align: center;
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.confidence-number {
-  height: 21px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.3s ease;
-  padding: 0 2px;
-  box-sizing: border-box;
-  margin: 0;
-}
-
-.line-numbers {
   width: 50px;
   background-color: #f5f7fa;
   border-right: 1px solid #dcdfe6;
   overflow-y: auto;
   text-align: center;
   font-family: 'Courier New', monospace;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.5;
+  background: linear-gradient(90deg, #f5f7fa 0%, #eef0f5 100%);
 }
 
-.line-number {
-  height: 21px;
-  color: #606266;
+.confidence-number {
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 5px;
+  transition: all 0.3s ease;
+  padding: 0 4px;
   box-sizing: border-box;
   margin: 0;
 }
 
-.line-text {
-  font-size: 12px;
-  line-height: 1;
+.confidence-number:hover {
+  background-color: rgba(64, 158, 255, 0.1);
 }
 
+/* 行号列 */
+.line-numbers {
+  width: 60px;
+  background-color: #f5f7fa;
+  border-right: 1px solid #dcdfe6;
+  overflow-y: auto;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: linear-gradient(90deg, #f5f7fa 0%, #eef0f5 100%);
+}
+
+.line-number {
+  height: 24px;
+  color: #606266;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+  margin: 0;
+  transition: all 0.3s ease;
+}
+
+.line-number:hover {
+  background-color: rgba(64, 158, 255, 0.1);
+  color: #409eff;
+}
+
+.line-text {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+/* 置信度显示 */
 .line-confidence {
-  font-size: 9px;
+  font-size: 10px;
   color: #fff;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 1px 4px;
-  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.8) 100%);
+  padding: 2px 6px;
+  border-radius: 4px;
   line-height: 1;
   text-align: center;
-  min-width: 25px;
+  min-width: 30px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+/* 代码编辑器 */
 .code-editor {
   flex: 1;
   border: none;
@@ -671,40 +805,89 @@ const analyzeCode = async () => {
   padding: 0;
   font-family: 'Courier New', monospace;
   font-size: 14px;
-  line-height: 21px;
+  line-height: 24px;
   resize: none;
-  background-color: #fafafa;
+  background-color: #fff;
   overflow-y: auto;
 }
 
 .code-line {
-  padding: 0 10px;
-  height: 21px;
-  line-height: 21px;
+  padding: 0 15px;
+  height: 24px;
+  line-height: 24px;
   white-space: pre;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
   margin: 0;
+  border-left: 3px solid transparent;
 }
 
+.code-line:hover {
+  background-color: rgba(64, 158, 255, 0.05);
+  border-left-color: #409eff;
+}
+
+/* 结果卡片 */
 .results-card {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
+/* 空状态 */
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 20px;
   color: #909399;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
+.empty-state p {
+  margin-top: 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.empty-hint {
+  font-size: 14px !important;
+  color: #c0c4cc !important;
+  margin-top: 10px !important;
+}
+
+/* 统计信息 */
 .stats {
-  margin-bottom: 20px;
+  margin: 20px;
+  margin-bottom: 25px;
 }
 
 .stat-item {
   text-align: center;
-  padding: 15px;
-  border-radius: 8px;
+  padding: 20px;
+  border-radius: 12px;
   color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 12px 12px 0 0;
+}
+
+.stat-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .stat-item.high {
@@ -719,73 +902,198 @@ const analyzeCode = async () => {
   background: linear-gradient(135deg, #67c23a 0%, #409eff 100%);
 }
 
-.stat-number {
+.stat-icon {
   font-size: 24px;
-  font-weight: bold;
+  margin-bottom: 10px;
+  opacity: 0.9;
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 5px;
 }
 
 .stat-label {
-  font-size: 12px;
-  margin-top: 5px;
+  font-size: 14px;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
+/* 漏洞列表 */
 .vulnerability-list {
-  margin-top: 20px;
+  flex: 1;
+  margin: 0 20px 20px;
+  overflow-y: auto;
 }
 
-.vulnerability-list h4 {
-  margin-bottom: 15px;
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.list-header h4 {
+  font-size: 18px;
+  font-weight: 600;
   color: #303133;
+  margin: 0;
+}
+
+.timeline-item {
+  margin-bottom: 20px;
 }
 
 .vulnerability-item {
-  padding: 10px;
+  padding: 15px;
   background: #f5f7fa;
-  border-radius: 4px;
-  border-left: 3px solid #409eff;
+  border-radius: 8px;
+  border-left: 4px solid #409eff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.vulnerability-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateX(4px);
 }
 
 .vuln-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
-.line-number {
+.vuln-header .line-number {
   color: #606266;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #eef0f5;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .confidence {
   color: #909399;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #eef0f5;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.confidence-icon {
   font-size: 12px;
+  color: #e6a23c;
 }
 
 .vuln-message {
   color: #303133;
   font-size: 14px;
-  margin-bottom: 5px;
+  font-weight: 500;
+  margin-bottom: 10px;
+  line-height: 1.4;
 }
 
 .vuln-code {
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 13px;
   color: #606266;
   background: #fff;
-  padding: 5px;
-  border-radius: 3px;
-  border-left: 3px solid #409eff;
+  padding: 10px;
+  border-radius: 6px;
+  border-left: 4px solid #409eff;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  line-height: 1.4;
 }
 
+/* 无漏洞状态 */
 .no-vulnerabilities {
   text-align: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
   color: #67c23a;
+  background: linear-gradient(135deg, #f0f9eb 0%, #e6f7ff 100%);
+  border-radius: 8px;
+  margin: 20px;
+  box-shadow: 0 4px 16px rgba(103, 194, 58, 0.15);
 }
 
 .no-vulnerabilities p {
-  margin-top: 10px;
-  font-size: 14px;
+  margin-top: 15px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.safe-hint {
+  font-size: 14px !important;
+  color: #95ce61 !important;
+  margin-top: 8px !important;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-header h2 {
+    font-size: 24px;
+  }
+  
+  .page-subtitle {
+    font-size: 14px;
+  }
+  
+  .el-col {
+    width: 100% !important;
+    margin-bottom: 20px;
+  }
+  
+  .editor-container {
+    height: 400px;
+  }
+  
+  .heatmap-legend {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .card-header {
+    padding: 0 15px;
+  }
+  
+  .header-actions {
+    gap: 8px;
+  }
+  
+  .header-actions .el-button {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
 }
 </style>

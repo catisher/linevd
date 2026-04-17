@@ -265,19 +265,33 @@ def rank_metr(pred, true, r_thresh=0.5, perfect=False):
     # 检查并转换PyTorch张量
     if isinstance(pred, torch.Tensor):
         pred_np = pred.cpu().numpy()
+        # 确保 pred_np 是一维数组
+        if pred_np.ndim > 1:
+            # 对于二分类问题，使用第二个类别的概率作为正类的预测分数
+            pred_np = pred_np[:, 1]
         # 检查是否所有值都是0或1
         if np.all((pred_np == 0) | (pred_np == 1)):
             print("警告：预测值是二值的，不是连续的。")
     else:
         pred_np = pred
+        # 确保 pred_np 是一维数组
+        if hasattr(pred_np, 'ndim') and pred_np.ndim > 1:
+            # 对于二分类问题，使用第二个类别的概率作为正类的预测分数
+            pred_np = pred_np[:, 1]
         # 原始的检查逻辑，用于处理非张量输入
         if not any([i != 0 and i != 1 for i in pred_np]):
             print("警告：预测值是二值的，不是连续的。")
     
     if isinstance(true, torch.Tensor):
         true_np = true.cpu().numpy()
+        # 确保 true_np 是一维数组
+        if true_np.ndim > 1:
+            true_np = true_np.flatten()
     else:
         true_np = true
+        # 确保 true_np 是一维数组
+        if hasattr(true_np, 'ndim') and true_np.ndim > 1:
+            true_np = true_np.flatten()
     
     ret = dict()
     kvals = [1, 3, 5, 10, 15, 20]
@@ -300,6 +314,10 @@ def rank_metr(pred, true, r_thresh=0.5, perfect=False):
     if mean_true == 0 or mean_true == 1:
         ret["AUC"] = np.nan
     else:
+        # 确保 pred_np 是一维数组
+        if pred_np.ndim > 1:
+            # 对于二分类问题，使用第二个类别的概率作为正类的预测分数
+            pred_np = pred_np[:, 1]
         ret["AUC"] = roc_auc_score(true_np, pred_np)
     ret["MFR"] = MFR(r)
     ret["MAR"] = MAR(r)

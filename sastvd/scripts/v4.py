@@ -38,24 +38,24 @@ def create_manual_graph():
     with dot.subgraph(name='cluster_legend') as c:
         c.attr(label='Legend', style='filled', fillcolor='lightgrey', rank='same')
         # Create legend nodes
-        c.node('legend', 'Legend', shape='box', style='filled', fillcolor='lightgrey')
-        c.node('legend_cfg', 'CFG: Control Flow', shape='box')
-        c.node('legend_ddg', 'DDG: Data Flow', shape='box')
+        c.node('legend_title', 'Legend', shape='box', style='filled', fillcolor='lightgrey')
+        c.node('legend_cfg', 'Control Flow', shape='box')
+        c.node('legend_ddg', 'Data Flow', shape='box')
         c.node('legend_func', 'Function Def', shape='box', style='filled', fillcolor='lightblue')
         c.node('legend_var', 'Variable Def', shape='box', style='filled', fillcolor='lightgreen')
         
         # Connect legend nodes vertically
-        c.edge('legend', 'legend_cfg', style='invis')
+        c.edge('legend_title', 'legend_cfg', style='invis')
         c.edge('legend_cfg', 'legend_ddg', style='invis')
         c.edge('legend_ddg', 'legend_func', style='invis')
         c.edge('legend_func', 'legend_var', style='invis')
         
-        # Add example edges for legend
-        c.edge('legend_cfg', 'legend_ddg', style='solid', color='black', label='CFG Edge', constraint='false')
-        c.edge('legend_ddg', 'legend_func', style='dashed', color='green', label='DDG Edge', constraint='false')
+        # Add example edges for legend with clear labels
+        c.edge('legend_cfg', 'legend_ddg', style='solid', color='black', label='Black line: CFG', constraint='false')
+        c.edge('legend_ddg', 'legend_func', style='dashed', color='green', label='Green line: DDG', constraint='false')
     
     # Add invisible edge to align subgraphs horizontally
-    dot.edge('line1', 'legend', style='invis')
+    dot.edge('line1', 'legend_title', style='invis')
     
     # Save the graph
     output_file = "./manual_code_structure"

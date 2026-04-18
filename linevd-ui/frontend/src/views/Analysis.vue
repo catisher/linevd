@@ -414,7 +414,7 @@ const analyzeCode = async () => {
         const codeSnippet = lineIndex >= 0 && lineIndex < codeLines.length 
           ? codeLines[lineIndex].trim() 
           : ''
-        result.confidence = 1-result.confidence
+        // result.confidence = 1-result.confidence
         // 根据置信度确定严重程度
         let severity = 'Low'
         if (result.confidence > 0.8) {
@@ -485,14 +485,14 @@ const analyzeCode = async () => {
         line: 5, 
         severity: 'Medium', 
         message: 'Potential buffer overflow', 
-        confidence: 0.0262, 
+        confidence: 0.9262, 
         code_snippet: '    strcpy(buffer, input);' 
       },
       {
         line: 6,
         severity: 'Medium',
         message: 'Buffer overflow vulnerability',
-        confidence: 0.0347,
+        confidence: 0.9347,
         code_snippet: '    printf("%s\n", buffer);'
       },
       { 
@@ -520,7 +520,7 @@ const analyzeCode = async () => {
         line: 10, 
         severity: 'Medium', 
         message: 'Unsafe input function', 
-        confidence: 0.0401, 
+        confidence: 0.9401, 
         code_snippet: '    gets(user_input);' 
       },
       { 

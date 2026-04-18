@@ -18,6 +18,13 @@ import sastvd.linevd as lvd
 import torch as th
 
 
+def get_code_lines(vid):
+    """获取代码文件的所有行"""
+    file_path = svddc.BigVulDataset.itempath(vid)
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        lines = f.readlines()
+    return len(lines)
+
 def preds(model, datapartition, vid):
     """获取模型对特定代码片段的预测结果。"""
     # 创建ID到索引的映射
@@ -136,18 +143,31 @@ def main():
             # 获取预测结果
             predictions = preds(model, datapartition, target_id)
             
+            # 获取代码文件的总行数
+            total_lines = get_code_lines(target_id)
+            print(f"\n代码文件总行数: {total_lines}")
+            
+            # 创建一个字典，存储所有行的预测结果
+            line_predictions = {}
+            for i in range(1, total_lines + 1):
+                line_predictions[i] = {"confidence": 0.0, "is_vuln": False}
+            
+            # 填充预测结果
+            for pred in predictions:
+                line = pred[1]
+                if line in line_predictions:
+                    line_predictions[line] = {"confidence": pred[0], "is_vuln": (pred[2] == 1)}
+            
             # 打印预测结果
             print("\n每行的置信度信息:")
             print("行号 | 置信度 | 是否为漏洞")
             print("-" * 30)
             
-            # 按行号排序
-            predictions_sorted = sorted(predictions, key=lambda x: x[1])
-            
-            for pred in predictions_sorted:
-                confidence = pred[0]
-                line = pred[1]
-                is_vuln = "是" if pred[2] == 1 else "否"
+            # 按行号排序并打印
+            for line in sorted(line_predictions.keys()):
+                pred = line_predictions[line]
+                confidence = pred["confidence"]
+                is_vuln = "是" if pred["is_vuln"] else "否"
                 print(f"{line:4d} | {confidence:.4f} | {is_vuln}")
             
             found = True

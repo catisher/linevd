@@ -147,16 +147,24 @@ def main():
             total_lines = get_code_lines(target_id)
             print(f"\n代码文件总行数: {total_lines}")
             
+            # 获取真实漏洞行号
+            vulns = [i[1] for i in predictions if i[2] == 1]
+            
+            # 对预测结果进行归一化处理（与h1.py保持一致）
+            norm_vulns = []
+            for idx, i in enumerate(predictions[:5]):
+                norm_vulns.append([0.7 - (0.15 * (idx)), i[1], i[2]])
+            
             # 创建一个字典，存储所有行的预测结果
             line_predictions = {}
             for i in range(1, total_lines + 1):
-                line_predictions[i] = {"confidence": 0.0, "is_vuln": False}
+                line_predictions[i] = {"confidence": 0.0, "is_vuln": (i in vulns)}
             
-            # 填充预测结果
-            for pred in predictions:
-                line = pred[1]
+            # 填充归一化后的预测结果
+            for norm_pred in norm_vulns:
+                line = norm_pred[1]
                 if line in line_predictions:
-                    line_predictions[line] = {"confidence": pred[0], "is_vuln": (pred[2] == 1)}
+                    line_predictions[line] = {"confidence": norm_pred[0], "is_vuln": (norm_pred[2] == 1)}
             
             # 打印预测结果
             print("\n每行的置信度信息:")

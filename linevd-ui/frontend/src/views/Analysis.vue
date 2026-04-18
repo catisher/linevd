@@ -199,21 +199,19 @@ import { ElMessage } from 'element-plus'
 import { CheckFilled, InfoFilled, Search, Upload, Code, DataAnalysis, WarningFilled, Star } from '@element-plus/icons-vue'
 
 // 响应式数据：代码内容，初始值为示例 C 代码
-const code = ref(`#include <stdio.h>
-#include <string.h>
-
-void vulnerable_function(char *input) {
-    char buffer[10];
-    strcpy(buffer, input);  // 高危：缓冲区溢出
-    printf("%s\n", buffer);
-}
-
-int main() {
-    char user_input[100];
-    gets(user_input);  // 高危：不安全的输入
-    vulnerable_function(user_input);
-    return 0;
-}`)
+const code = ref(`void CheckSADs() {
+      unsigned int reference_sad, exp_sad[4];
+  
+      SADs(exp_sad);
+    for (int block = 0; block < 4; block++) {
+      reference_sad = ReferenceSAD(UINT_MAX, block);
+//     for (int block = 0; block < 4; ++block) {
+//       reference_sad = ReferenceSAD(block);
+  
+      EXPECT_EQ(exp_sad[block], reference_sad) << "block " << block;
+//       EXPECT_EQ(reference_sad, exp_sad[block]) << "block " << block;
+      }
+    }`)
 
 // 响应式数据：代码行数组
 const codeLines = ref([])
@@ -459,119 +457,98 @@ const analyzeCode = async () => {
         line: 1, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
+        confidence: 0.0000, 
         code_snippet: '#include <stdio.h>' 
       },
       { 
         line: 2, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
+        confidence: 0.0000, 
         code_snippet: '#include <string.h>' 
       },
       { 
         line: 3, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
+        confidence: 0.0000, 
         code_snippet: 'void vulnerable_function(char *input) {' 
       },
       { 
         line: 4, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
+        confidence: 0.0514, 
         code_snippet: '    char buffer[10];' 
       },
       { 
         line: 5, 
-        severity: 'Low', 
-        message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: '' 
+        severity: 'Medium', 
+        message: 'Potential buffer overflow', 
+        confidence: 0.0262, 
+        code_snippet: '    strcpy(buffer, input);' 
       },
       {
         line: 6,
-        severity: 'High',
-        message: 'Buffer overflow vulnerability: strcpy(buffer, input)',
-        confidence: 0.95,
-        code_snippet: 'strcpy(buffer, input);'
+        severity: 'Medium',
+        message: 'Buffer overflow vulnerability',
+        confidence: 0.0347,
+        code_snippet: '    printf("%s\n", buffer);'
       },
       { 
         line: 7, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: '    printf("%s\n", buffer);' 
+        confidence: 0.0000, 
+        code_snippet: '}' 
       },
       { 
         line: 8, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: '}' 
+        confidence: 0.0000, 
+        code_snippet: 'int main() {' 
       },
       { 
         line: 9, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: 'int main() {' 
+        confidence: 0.0000, 
+        code_snippet: '    char user_input[100];' 
       },
       { 
         line: 10, 
-        severity: 'Low', 
-        message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: '    char user_input[100];' 
+        severity: 'Medium', 
+        message: 'Unsafe input function', 
+        confidence: 0.0401, 
+        code_snippet: '    gets(user_input);' 
       },
       { 
         line: 11, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: '' 
+        confidence: 0.0000, 
+        code_snippet: '    vulnerable_function(user_input);' 
       },
       { 
         line: 12, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19 + 0, 
-        code_snippet: '' 
-      },
-      {
-        line: 13,
-        severity: 'High',
-        message: 'Unsafe input function: gets(user_input)',
-        confidence: 0.92,
-        code_snippet: 'gets(user_input);'
-      },
-      { 
-        line: 14, 
-        severity: 'Low', 
-        message: 'Potential issue', 
-        confidence: Math.random() * 0.19 , 
-        code_snippet: '    vulnerable_function(user_input);' 
-      },
-      { 
-        line: 15, 
-        severity: 'Low', 
-        message: 'Potential issue', 
-        confidence: Math.random() * 0.19, 
+        confidence: 0.0000, 
         code_snippet: '    return 0;' 
       },
       { 
-        line: 16, 
+        line: 13, 
         severity: 'Low', 
         message: 'Potential issue', 
-        confidence: Math.random() * 0.19, 
+        confidence: 0.0000, 
         code_snippet: '}' 
       }
     ]
     // 更新模拟数据的统计信息
-    highRiskCount.value = 2
-    mediumRiskCount.value = 0
-    lowRiskCount.value = 16
+    highRiskCount.value = 0
+    mediumRiskCount.value = 3
+    lowRiskCount.value = 10
     // 标记分析完成
     analysisComplete.value = true
   } finally {

@@ -58,3 +58,5 @@ local_outputs/
 local_directory/
 **/local_directory/
 
+*.pdf
+**/*.pdf

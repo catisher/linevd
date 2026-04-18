@@ -123,7 +123,7 @@ def main():
     data = lvd.BigVulDatasetLineVDDataModule(**datamodule_args)
     
     # 准备数据
-    data.setup()
+    data.setup(stage="fit")
     
     # 目标文件ID
     target_id = 188591

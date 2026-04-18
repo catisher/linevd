@@ -28,9 +28,9 @@ def preds(model, datapartition, vid):
     # 模型预测
     ret_logits = model(g, test=True)
     # 计算行级预测概率
-    line_ranks = th.nn.functional.softmax(ret_logits[0], dim=1)[:, 1]
-    # 对预测结果进行三次方处理，增强高置信度预测的区分度
-    line_ranks = [i ** 3 for i in line_ranks]
+    line_probs = th.nn.functional.softmax(ret_logits[0], dim=1)
+    # 取漏洞的概率（索引为1）
+    line_ranks = line_probs[:, 1]
     # 组合预测结果、行号和真实标签
     ret = list(zip(line_ranks, g.ndata["_LINE"], g.ndata["_VULN"]))
     # 转换为列表格式
